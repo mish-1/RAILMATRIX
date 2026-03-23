@@ -1,181 +1,279 @@
--- ===============================
--- 1. CREATE DATABASE
--- ===============================
-CREATE DATABASE RailMatrix;
-USE RailMatrix;
-
--- ===============================
--- 2. USER TABLE
--- ===============================
-CREATE TABLE USER (
-    user_id INT PRIMARY KEY AUTO_INCREMENT,
-    user_name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) UNIQUE,
-    phone_number VARCHAR(15) UNIQUE
+show databases;
+CREATE DATABASE ConnectingTrainDB;
+USE ConnectingTrainDB;
+CREATE TABLE User (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone_number VARCHAR(15) NOT NULL
 );
-
--- ===============================
--- 3. TRAIN TABLE
--- ===============================
-CREATE TABLE TRAIN (
-    train_id INT PRIMARY KEY AUTO_INCREMENT,
-    train_number VARCHAR(20) UNIQUE NOT NULL,
+CREATE TABLE Train (
+    train_id INT AUTO_INCREMENT PRIMARY KEY,
+    train_number VARCHAR(10) UNIQUE NOT NULL,
     train_name VARCHAR(100) NOT NULL,
-    train_type VARCHAR(50),
+    train_type VARCHAR(30),
     days_of_run VARCHAR(50)
 );
-
--- ===============================
--- 4. STATION TABLE
--- ===============================
-CREATE TABLE STATION (
-    station_id INT PRIMARY KEY AUTO_INCREMENT,
+CREATE TABLE Station (
+    station_id INT AUTO_INCREMENT PRIMARY KEY,
     station_code VARCHAR(10) UNIQUE NOT NULL,
     station_name VARCHAR(100) NOT NULL,
     state VARCHAR(50),
-    zone VARCHAR(50),
-    station_type ENUM('Junction','Terminal','Halt')
+    zone VARCHAR(20),
+    station_type VARCHAR(20)
+    CHECK (station_type IN ('Junction','Terminal','Halt'))
 );
-
--- ===============================
--- 5. ROUTE TABLE
--- ===============================
-CREATE TABLE ROUTE (
-    route_id INT PRIMARY KEY AUTO_INCREMENT,
-    train_id INT,
-    station_id INT,
-    stop_number INT,
+CREATE TABLE Route (
+    route_id INT AUTO_INCREMENT PRIMARY KEY,
+    train_id INT NOT NULL,
+    station_id INT NOT NULL,
+    stop_number INT NOT NULL,
     arrival_time TIME,
     departure_time TIME,
     halt_duration INT,
     distance_from_source INT,
 
-    FOREIGN KEY (train_id) REFERENCES TRAIN(train_id),
-    FOREIGN KEY (station_id) REFERENCES STATION(station_id)
+    FOREIGN KEY (train_id) REFERENCES Train(train_id),
+    FOREIGN KEY (station_id) REFERENCES Station(station_id)
 );
-
--- ===============================
--- 6. BOOKING TABLE
--- ===============================
-CREATE TABLE BOOKING (
-    booking_id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT,
-    train_id INT,
-    source_station_id INT,
-    destination_station_id INT,
-    journey_date DATE,
-    booking_date DATE,
-    seat_count INT,
-    booking_status VARCHAR(20),
-
-    FOREIGN KEY (user_id) REFERENCES USER(user_id),
-    FOREIGN KEY (train_id) REFERENCES TRAIN(train_id),
-    FOREIGN KEY (source_station_id) REFERENCES STATION(station_id),
-    FOREIGN KEY (destination_station_id) REFERENCES STATION(station_id)
-);
-
--- ===============================
--- 7. STOP TABLE
--- ===============================
-CREATE TABLE STOP (
-    stop_id INT PRIMARY KEY AUTO_INCREMENT,
-    route_id INT,
-    station_id INT,
-    stop_sequence INT,
+CREATE TABLE Stop (
+    stop_id INT AUTO_INCREMENT PRIMARY KEY,
+    route_id INT NOT NULL,
+    station_id INT NOT NULL,
+    stop_sequence INT NOT NULL,
     arrival_time TIME,
     departure_time TIME,
     halt_duration INT,
 
-    FOREIGN KEY (route_id) REFERENCES ROUTE(route_id),
-    FOREIGN KEY (station_id) REFERENCES STATION(station_id)
+    FOREIGN KEY (route_id) REFERENCES Route(route_id),
+    FOREIGN KEY (station_id) REFERENCES Station(station_id)
 );
+CREATE TABLE Booking (
+    booking_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    train_id INT NOT NULL,
+    source_station_id INT NOT NULL,
+    destination_station_id INT NOT NULL,
+    journey_date DATE NOT NULL,
+    booking_date DATE NOT NULL,
+    seat_count INT NOT NULL,
+    booking_status VARCHAR(20)
+    CHECK (booking_status IN ('Confirmed','Pending','Cancelled')),
 
--- ===============================
--- 8. TICKET TABLE
--- ===============================
-CREATE TABLE TICKET (
-    ticket_id INT PRIMARY KEY AUTO_INCREMENT,
-    booking_id INT,
-    passenger_name VARCHAR(100),
+    FOREIGN KEY (user_id) REFERENCES User(user_id),
+    FOREIGN KEY (train_id) REFERENCES Train(train_id),
+    FOREIGN KEY (source_station_id) REFERENCES Station(station_id),
+    FOREIGN KEY (destination_station_id) REFERENCES Station(station_id)
+);
+CREATE TABLE Ticket (
+    ticket_id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_id INT NOT NULL,
+    passenger_name VARCHAR(100) NOT NULL,
     coach_no VARCHAR(10),
     seat_no VARCHAR(10),
-    fare DECIMAL(10,2),
+    fare DECIMAL(8,2),
 
-    FOREIGN KEY (booking_id) REFERENCES BOOKING(booking_id)
+    FOREIGN KEY (booking_id) REFERENCES Booking(booking_id)
+);
+CREATE TABLE Train_Raw (
+    train_no INT,
+    train_name VARCHAR(100),
+    seq INT,
+    station_code VARCHAR(10),
+    station_name VARCHAR(100),
+    arrival_time TIME,
+    departure_time TIME,
+    distance INT,
+    source_station_code VARCHAR(10),
+    source_station_name VARCHAR(100),
+    destination_station_code VARCHAR(10),
+    destination_station_name VARCHAR(100)
 );
 
--- ===============================
--- 9. SAMPLE DATA INSERTION
--- ===============================
+INSERT INTO Train (train_number, train_name)
+SELECT DISTINCT train_no, train_name
+FROM Train_Raw;
 
--- Stations
-INSERT INTO STATION (station_code, station_name, state, zone, station_type)
+INSERT INTO Station (station_code, station_name)
+SELECT DISTINCT station_code, station_name
+FROM Train_Raw;
+
+INSERT INTO Route (train_id, station_id, stop_number, arrival_time, departure_time, distance_from_source)
+SELECT 
+    t.train_id,
+    s.station_id,
+    r.seq,
+    r.arrival_time,
+    r.departure_time,
+    r.distance
+FROM Train_Raw r
+JOIN Train t ON t.train_number = r.train_no
+JOIN Station s ON s.station_code = r.station_code;
+
+ALTER TABLE Train
+MODIFY train_number INT;
+
+INSERT INTO Stop (route_id, station_id, stop_sequence, arrival_time, departure_time)
+SELECT 
+    rt.route_id,
+    s.station_id,
+    r.seq,
+    r.arrival_time,
+    r.departure_time
+FROM Train_Raw r
+JOIN Train t ON t.train_number = r.train_no
+JOIN Station s ON s.station_code = r.station_code
+JOIN Route rt 
+    ON rt.train_id = t.train_id 
+    AND rt.station_id = s.station_id;
+    
+INSERT INTO User (user_name, email, phone_number)
+VALUES ('Mishty Kataria', 'mishty@gmail.com', '9876543210');
+
+INSERT INTO Booking 
+(user_id, train_id, source_station_id, destination_station_id,
+ journey_date, booking_date, seat_count, booking_status)
 VALUES 
-('PUNE','Pune Junction','Maharashtra','Central','Junction'),
-('MUM','Mumbai Central','Maharashtra','Western','Terminal'),
-('DEL','New Delhi','Delhi','Northern','Junction'),
-('JAI','Jaipur','Rajasthan','North Western','Junction');
+(
+ 1,
+ (SELECT train_id FROM Train WHERE train_number = '107'),
+ (SELECT station_id FROM Station WHERE station_code = 'BRC'),
+ (SELECT station_id FROM Station WHERE station_code = 'PUNE'),
+ '2026-04-01',
+ CURDATE(),
+ 1,
+ 'Confirmed'
+);
 
--- Trains
-INSERT INTO TRAIN (train_number, train_name, train_type, days_of_run)
-VALUES 
-('12123','Deccan Express','Superfast','Mon,Tue,Wed'),
-('12951','Rajdhani Express','Premium','Daily');
-
--- Routes
-INSERT INTO ROUTE (train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
+INSERT INTO Ticket
+(booking_id, passenger_name, coach_no, seat_no, fare)
 VALUES
-(1,1,1,'08:00:00','08:05:00',5,0),
-(1,2,2,'12:00:00','12:10:00',10,150),
-(2,3,1,'06:00:00','06:10:00',10,0),
-(2,4,2,'10:00:00','10:05:00',5,250);
+(LAST_INSERT_ID(), 'Mishty Kataria', 'S1', '21', 550.00);
 
--- Users
-INSERT INTO USER (user_name, email, phone_number)
-VALUES 
-('Mishti','mishti@gmail.com','9876543210');
+UPDATE Station 
+SET state = 'Gujarat', zone = 'WR', station_type = 'Junction'
+WHERE station_code = 'BRC';
 
--- Booking
-INSERT INTO BOOKING (user_id, train_id, source_station_id, destination_station_id, journey_date, booking_date, seat_count, booking_status)
-VALUES 
-(1,1,1,2,'2026-03-20',CURDATE(),2,'Confirmed');
+UPDATE Station 
+SET state = 'Gujarat', zone = 'WR', station_type = 'Junction'
+WHERE station_code = 'ST';
 
--- Ticket
-INSERT INTO TICKET (booking_id, passenger_name, coach_no, seat_no, fare)
-VALUES
-(1,'Mishti Kinker','S1','23',500.00);
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'WR', station_type = 'Terminal'
+WHERE station_code = 'BCT';
 
--- ===============================
--- 10. IMPORTANT QUERIES
--- ===============================
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'CR', station_type = 'Junction'
+WHERE station_code = 'KYN';
 
--- View all trains
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'CR', station_type = 'Halt'
+WHERE station_code = 'LNL';
+
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'CR', station_type = 'Terminal'
+WHERE station_code = 'PUNE';
+
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'CR', station_type = 'Terminal'
+WHERE station_code = 'CSMT';
+
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'CR', station_type = 'Junction'
+WHERE station_code = 'DR';
+
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'CR', station_type = 'Junction'
+WHERE station_code = 'TNA';
+
+UPDATE Station 
+SET state = 'Maharashtra', zone = 'CR', station_type = 'Junction'
+WHERE station_code = 'PNVL';
+
+UPDATE Route
+SET halt_duration = TIMESTAMPDIFF(
+    MINUTE,
+    arrival_time,
+    departure_time
+)
+WHERE arrival_time IS NOT NULL 
+  AND departure_time IS NOT NULL
+  AND route_id > 0;
+  
+  UPDATE Stop
+SET halt_duration = TIMESTAMPDIFF(
+    MINUTE,
+    arrival_time,
+    departure_time
+)
+WHERE arrival_time IS NOT NULL 
+  AND departure_time IS NOT NULL
+  AND route_id > 0;
+  
 SELECT * FROM TRAIN;
 
--- Direct Train Search
-SELECT t.train_name
-FROM ROUTE r1
-JOIN ROUTE r2 ON r1.train_id = r2.train_id
-JOIN TRAIN t ON t.train_id = r1.train_id
-WHERE r1.station_id = 1
-AND r2.station_id = 2
-AND r1.stop_number < r2.stop_number;
-
--- Connecting Trains
 SELECT 
-    t1.train_name AS First_Train,
-    t2.train_name AS Second_Train,
-    s.station_name AS Junction
-FROM ROUTE r1
-JOIN ROUTE r2 ON r1.station_id = r2.station_id
-JOIN TRAIN t1 ON r1.train_id = t1.train_id
-JOIN TRAIN t2 ON r2.train_id = t2.train_id
-JOIN STATION s ON s.station_id = r1.station_id
-WHERE r1.departure_time < r2.arrival_time
-AND r1.train_id <> r2.train_id;
+    t.train_number,
+    t.train_name,
+    s1.station_name AS source,
+    s2.station_name AS destination,
+    r1.departure_time,
+    r2.arrival_time
+FROM Route r1
+JOIN Route r2 
+    ON r1.train_id = r2.train_id 
+    AND r1.stop_number < r2.stop_number
+JOIN Train t 
+    ON t.train_id = r1.train_id
+JOIN Station s1 
+    ON s1.station_id = r1.station_id
+JOIN Station s2 
+    ON s2.station_id = r2.station_id
+WHERE s1.station_code = 'BRC'   -- Source (e.g., BRC)
+  AND s2.station_code = 'PUNE';  -- Destination (e.g., PUNE)
 
--- View bookings
-SELECT b.booking_id, u.user_name, t.train_name, b.booking_status
-FROM BOOKING b
-JOIN USER u ON b.user_id = u.user_id
-JOIN TRAIN t ON b.train_id = t.train_id;
+--  CONNECTING TRAIN QUERY
+SELECT 
+    t1.train_number AS train1,
+    s1.station_name AS source,
+    s_mid.station_name AS via_station,
+    t2.train_number AS train2,
+    s2.station_name AS destination
+FROM Route r1
+JOIN Route r_mid1 
+    ON r1.train_id = r_mid1.train_id 
+    AND r1.stop_number < r_mid1.stop_number
+
+JOIN Route r_mid2 
+    ON r_mid1.station_id = r_mid2.station_id
+
+JOIN Route r2 
+    ON r_mid2.train_id = r2.train_id 
+    AND r_mid2.stop_number < r2.stop_number
+
+JOIN Train t1 ON t1.train_id = r1.train_id
+JOIN Train t2 ON t2.train_id = r2.train_id
+
+JOIN Station s1 ON s1.station_id = r1.station_id
+JOIN Station s_mid ON s_mid.station_id = r_mid1.station_id
+JOIN Station s2 ON s2.station_id = r2.station_id
+
+WHERE s1.station_code = 'BRC'   -- Source
+  AND s2.station_code = 'PUNE'   -- Destination
+  AND r1.train_id != r2.train_id;
+
+-- VIEWBOOKING
+SELECT 
+    b.booking_id,u.user_name,u.email,tr.train_number,tr.train_name,s1.station_name AS source,s2.station_name AS destination,b.journey_date,
+    b.booking_date,b.seat_count,b.booking_status,t.passenger_name,t.coach_no,t.seat_no,t.fare
+FROM Booking b
+JOIN User u 
+    ON u.user_id = b.user_id
+JOIN Train tr 
+    ON tr.train_id = b.train_id
+JOIN Station s1 
+    ON s1.station_id = b.source_station_id
+JOIN Station s2 
+    ON s2.station_id = b.destination_station_id
+LEFT JOIN Ticket t 
+    ON t.booking_id = b.booking_id;
