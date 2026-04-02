@@ -4,10 +4,15 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DatabaseService {
 
-    private static final String DB_URL = envOrDefault("RAILMATRIX_DB_URL", "jdbc:mysql://localhost:3306/ConnectingTrainDB");
+    private static final String DB_URL = envOrDefault("RAILMATRIX_DB_URL", inferDefaultDbUrl());
     private static final String DB_USER = envOrDefault("RAILMATRIX_DB_USER", "root");
     private static final String DB_PASSWORD = envOrDefault("RAILMATRIX_DB_PASSWORD", "root");
 
@@ -22,6 +27,35 @@ public class DatabaseService {
     private static String envOrDefault(String key, String defaultValue) {
         String value = System.getenv(key);
         return (value == null || value.isBlank()) ? defaultValue : value;
+    }
+
+    private static String inferDefaultDbUrl() {
+        String defaultDbName = "ConnectingTrainDB";
+        String dbNameFromSql = findDatabaseNameInSql(defaultDbName);
+        return "jdbc:mysql://localhost:3306/" + dbNameFromSql;
+    }
+
+    private static String findDatabaseNameInSql(String fallbackDbName) {
+        Path sqlPath = Path.of("railmatrix.sql");
+        if (!Files.exists(sqlPath)) {
+            return fallbackDbName;
+        }
+
+        Pattern createDbPattern = Pattern.compile("(?i)^\\s*CREATE\\s+DATABASE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?`?([A-Za-z0-9_]+)`?\\s*;.*$");
+
+        try {
+            List<String> lines = Files.readAllLines(sqlPath);
+            for (String line : lines) {
+                Matcher matcher = createDbPattern.matcher(line);
+                if (matcher.matches()) {
+                    return matcher.group(1);
+                }
+            }
+        } catch (Exception ignored) {
+            // Keep fallback DB name when sql parsing fails.
+        }
+
+        return fallbackDbName;
     }
 
     public Connection getConnection() throws SQLException {

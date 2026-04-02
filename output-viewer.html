@@ -5,20 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RailMatrix Web Console</title>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
-
     :root {
-      --sand: #f5efe2;
-      --paper: #fffaf0;
-      --ink: #1e293b;
-      --muted: #64748b;
-      --teal: #0f766e;
-      --rust: #c2410c;
-      --line: #ddcfb8;
+      --page: #f4f6f8;
+      --surface: #ffffff;
+      --surface-alt: #f8fafc;
+      --ink: #0f172a;
+      --muted: #475569;
+      --primary: #0f766e;
+      --primary-dark: #0b5f59;
       --ok: #166534;
       --bad: #be123c;
-      --glow: 0 22px 45px rgba(0, 0, 0, 0.14);
-      --radius: 18px;
+      --line: #dbe3ea;
+      --radius: 12px;
     }
 
     * {
@@ -27,72 +25,68 @@
 
     body {
       margin: 0;
-      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
       color: var(--ink);
-      background:
-        radial-gradient(circle at 8% 16%, #ffdcb8 0, transparent 35%),
-        radial-gradient(circle at 92% 10%, #bde6e0 0, transparent 34%),
-        linear-gradient(140deg, #f6f0e4 0%, #efe3ce 100%);
+      background: var(--page);
       min-height: 100vh;
-      padding: 20px;
+      padding: 24px;
     }
 
     .layout {
-      max-width: 1180px;
+      max-width: 1120px;
       margin: 0 auto;
       display: grid;
-      gap: 14px;
+      gap: 16px;
     }
 
     .hero {
-      background: linear-gradient(120deg, #0f766e 0%, #0c9488 48%, #d97706 100%);
-      color: #fffbf5;
+      background: var(--surface);
+      color: var(--ink);
       border-radius: var(--radius);
-      box-shadow: var(--glow);
-      padding: 22px;
-      animation: fadeUp 500ms ease;
+      border: 1px solid var(--line);
+      padding: 20px;
     }
 
     .hero h1 {
       margin: 0;
-      font-size: clamp(1.45rem, 3vw, 2.2rem);
-      letter-spacing: 0.35px;
+      font-size: clamp(1.4rem, 2.6vw, 1.95rem);
+      font-weight: 700;
     }
 
     .hero p {
       margin: 8px 0 0;
-      opacity: 0.95;
+      color: var(--muted);
+      opacity: 1;
     }
 
     .status {
       margin-top: 10px;
       display: inline-block;
-      background: rgba(255, 255, 255, 0.16);
-      border: 1px solid rgba(255, 255, 255, 0.38);
+      background: #ecfeff;
+      border: 1px solid #b6d9d5;
       border-radius: 999px;
-      padding: 6px 11px;
-      font-size: 0.86rem;
-      font-family: "IBM Plex Mono", monospace;
+      padding: 6px 10px;
+      font-size: 0.84rem;
+      color: #0f4b46;
     }
 
     .board {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 14px;
+      gap: 16px;
     }
 
     .card {
-      background: var(--paper);
+      background: var(--surface);
       border-radius: var(--radius);
       border: 1px solid var(--line);
-      box-shadow: var(--glow);
-      padding: 14px;
-      animation: fadeUp 620ms ease;
+      padding: 16px;
     }
 
     .card h2 {
       margin: 0 0 10px;
       font-size: 1.05rem;
+      font-weight: 700;
     }
 
     .stack {
@@ -108,48 +102,57 @@
 
     label {
       font-size: 0.9rem;
-      color: #334155;
+      color: #1e293b;
       font-weight: 600;
     }
 
     input {
       width: 100%;
-      border-radius: 10px;
-      border: 1px solid #c9b79d;
+      border-radius: 8px;
+      border: 1px solid #c9d5e2;
       background: #fff;
       color: #0f172a;
       padding: 10px;
       font: inherit;
     }
 
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+    }
+
     button {
       border: 0;
-      border-radius: 999px;
-      background: var(--rust);
+      border-radius: 8px;
+      background: var(--primary);
       color: #fff;
-      font-weight: 700;
+      font-weight: 600;
       padding: 10px 14px;
       cursor: pointer;
-      transition: transform 160ms ease, filter 160ms ease;
+      transition: background-color 120ms ease;
     }
 
     button:hover {
-      filter: brightness(1.04);
-      transform: translateY(-1px);
+      background: var(--primary-dark);
     }
 
     .ghost {
-      background: #0f766e;
+      background: #334155;
+    }
+
+    .ghost:hover {
+      background: #1f2937;
     }
 
     .results {
       background: #0f172a;
-      color: #dbeafe;
-      border-radius: 12px;
+      color: #e2e8f0;
+      border-radius: 10px;
       border: 1px solid #1e293b;
       min-height: 170px;
       padding: 12px;
-      font-family: "IBM Plex Mono", Consolas, monospace;
+      font-family: Consolas, "Courier New", monospace;
       font-size: 0.9rem;
       white-space: pre-wrap;
     }
@@ -171,10 +174,10 @@
     }
 
     .booking-item {
-      border: 1px solid #d6c3a5;
-      border-radius: 12px;
+      border: 1px solid #d4dee8;
+      border-radius: 10px;
       padding: 10px;
-      background: #fff;
+      background: #ffffff;
     }
 
     .booking-item strong {
@@ -183,26 +186,15 @@
 
     .bookings-panel {
       margin-top: 14px;
-      border: 1px solid #d8c8af;
-      border-radius: 14px;
-      background: #fff9ef;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-alt);
       padding: 12px;
-    }
-
-    @keyframes fadeUp {
-      from {
-        opacity: 0;
-        transform: translateY(8px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
     }
 
     @media (min-width: 920px) {
       .board {
-        grid-template-columns: 1.1fr 1fr;
+        grid-template-columns: 1fr 1fr;
       }
 
       .row {
