@@ -35,6 +35,7 @@ public class RailMatrixApp {
 
             if (!scanner.hasNextInt()) {
                 scanner.nextLine();
+                System.out.println("Invalid choice! Please enter a number between 1 and 4.");
                 continue;
             }
 

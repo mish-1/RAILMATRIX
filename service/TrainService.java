@@ -18,9 +18,10 @@ public class TrainService {
         this.databaseService.initializeTrainSearchSchema();
 
         // Local train list keeps booking flow stable even if route tables are missing.
-        trains.add(new Train(1, "RedLine Express", "Mumbai", "Pune"));
-        trains.add(new Train(2, "Night Rider", "Delhi", "Jaipur"));
-        trains.add(new Train(3, "Coastal Runner", "Chennai", "Bangalore"));
+        trains.add(new Train(901, "RedLine Express", "Mumbai", "Pune"));
+        trains.add(new Train(902, "Night Rider", "Delhi", "Jaipur"));
+        trains.add(new Train(903, "Coastal Runner", "Pune", "Chennai"));
+        trains.add(new Train(904, "Western Link", "Mumbai", "Bangalore"));
     }
 
     public void displayTrains() {
@@ -49,7 +50,12 @@ public class TrainService {
     }
 
     public Train getTrainById(int id) {
-        String sql = "SELECT train_id, train_name FROM TRAIN WHERE train_id = ?";
+        String sql = "SELECT t.train_id, t.train_name, "
+            + "(SELECT s.station_name FROM `Route` r JOIN `Station` s ON s.station_id = r.station_id "
+            + " WHERE r.train_id = t.train_id ORDER BY r.stop_number ASC LIMIT 1) AS source_station, "
+            + "(SELECT s.station_name FROM `Route` r JOIN `Station` s ON s.station_id = r.station_id "
+            + " WHERE r.train_id = t.train_id ORDER BY r.stop_number DESC LIMIT 1) AS destination_station "
+            + "FROM `Train` t WHERE t.train_id = ?";
 
         try (Connection con = databaseService.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
@@ -58,7 +64,15 @@ public class TrainService {
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return new Train(rs.getInt("train_id"), rs.getString("train_name"), "Unknown", "Unknown");
+                    String source = rs.getString("source_station");
+                    String destination = rs.getString("destination_station");
+                    if (source == null || source.isBlank()) {
+                        source = "Unknown";
+                    }
+                    if (destination == null || destination.isBlank()) {
+                        destination = "Unknown";
+                    }
+                    return new Train(rs.getInt("train_id"), rs.getString("train_name"), source, destination);
                 }
             }
         } catch (SQLException e) {

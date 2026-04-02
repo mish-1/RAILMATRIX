@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RailMatrix Web Console</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+
+    :root {
+      --sand: #f5efe2;
+      --paper: #fffaf0;
+      --ink: #1e293b;
+      --muted: #64748b;
+      --teal: #0f766e;
+      --rust: #c2410c;
+      --line: #ddcfb8;
+      --ok: #166534;
+      --bad: #be123c;
+      --glow: 0 22px 45px rgba(0, 0, 0, 0.14);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 16%, #ffdcb8 0, transparent 35%),
+        radial-gradient(circle at 92% 10%, #bde6e0 0, transparent 34%),
+        linear-gradient(140deg, #f6f0e4 0%, #efe3ce 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .layout {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
+    }
+
+    .hero {
+      background: linear-gradient(120deg, #0f766e 0%, #0c9488 48%, #d97706 100%);
+      color: #fffbf5;
+      border-radius: var(--radius);
+      box-shadow: var(--glow);
+      padding: 22px;
+      animation: fadeUp 500ms ease;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(1.45rem, 3vw, 2.2rem);
+      letter-spacing: 0.35px;
+    }
+
+    .hero p {
+      margin: 8px 0 0;
+      opacity: 0.95;
+    }
+
+    .status {
+      margin-top: 10px;
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.38);
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-size: 0.86rem;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--paper);
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      box-shadow: var(--glow);
+      padding: 14px;
+      animation: fadeUp 620ms ease;
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr;
+    }
+
+    label {
+      font-size: 0.9rem;
+      color: #334155;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #c9b79d;
+      background: #fff;
+      color: #0f172a;
+      padding: 10px;
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      background: var(--rust);
+      color: #fff;
+      font-weight: 700;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: transform 160ms ease, filter 160ms ease;
+    }
+
+    button:hover {
+      filter: brightness(1.04);
+      transform: translateY(-1px);
+    }
+
+    .ghost {
+      background: #0f766e;
+    }
+
+    .results {
+      background: #0f172a;
+      color: #dbeafe;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+      min-height: 170px;
+      padding: 12px;
+      font-family: "IBM Plex Mono", Consolas, monospace;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+    }
+
+    .msg-ok {
+      color: var(--ok);
+      font-weight: 600;
+    }
+
+    .msg-bad {
+      color: var(--bad);
+      font-weight: 600;
+    }
+
+    .booking-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .booking-item {
+      border: 1px solid #d6c3a5;
+      border-radius: 12px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .booking-item strong {
+      color: #0f172a;
+    }
+
+    .bookings-panel {
+      margin-top: 14px;
+      border: 1px solid #d8c8af;
+      border-radius: 14px;
+      background: #fff9ef;
+      padding: 12px;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (min-width: 920px) {
+      .board {
+        grid-template-columns: 1.1fr 1fr;
+      }
+
+      .row {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <section class="hero">
+      <h1>RailMatrix Web + Java + MySQL</h1>
+      <p>This page is connected to your Java backend and MySQL database. Search trains, create bookings, and fetch bookings from one interface.</p>
+      <span id="healthBadge" class="status">Checking server...</span>
+    </section>
+
+    <section class="board">
+      <article class="card">
+        <h2>Search Trains</h2>
+        <form id="searchForm" class="stack">
+          <div class="row">
+            <div>
+              <label for="source">Source</label>
+              <input id="source" name="source" value="Mumbai" required />
+            </div>
+            <div>
+              <label for="destination">Destination</label>
+              <input id="destination" name="destination" value="Pune" required />
+            </div>
+          </div>
+          <button type="submit">Search</button>
+        </form>
+        <div id="trainResults" class="results" aria-live="polite"></div>
+      </article>
+
+      <article class="card">
+        <h2>Create Booking</h2>
+        <form id="bookingForm" class="stack">
+          <div class="row">
+            <div>
+              <label for="userId">User ID</label>
+              <input id="userId" name="userId" type="number" min="1" value="1" required />
+            </div>
+            <div>
+              <label for="trainId">Train ID</label>
+              <input id="trainId" name="trainId" type="number" min="1" value="901" required />
+            </div>
+          </div>
+          <div>
+            <label for="userName">User Name</label>
+            <input id="userName" name="userName" value="Demo User" required />
+          </div>
+          <div class="row">
+            <div>
+              <label for="journeyDate">Journey Date</label>
+              <input id="journeyDate" name="journeyDate" type="date" required />
+            </div>
+            <div>
+              <label for="seatCount">Seat Count</label>
+              <input id="seatCount" name="seatCount" type="number" min="1" max="6" value="1" required />
+            </div>
+          </div>
+          <button type="submit">Book Ticket</button>
+          <div id="bookingMessage"></div>
+        </form>
+
+        <div class="bookings-panel">
+          <h2 style="margin-top:0;">My Bookings</h2>
+          <div class="row" style="margin-bottom:10px;">
+            <div>
+              <label for="bookingUserId">User ID For Booking List</label>
+              <input id="bookingUserId" name="bookingUserId" type="number" min="1" value="1" required />
+            </div>
+          </div>
+          <button id="loadBookingsBtn" type="button" class="ghost">Load Bookings</button>
+          <div id="bookingList" class="booking-list"></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const apiBase = "";
+
+    const healthBadge = document.getElementById("healthBadge");
+    const trainResults = document.getElementById("trainResults");
+    const bookingMessage = document.getElementById("bookingMessage");
+    const bookingList = document.getElementById("bookingList");
+
+    function isValidUserName(value) {
+      return /^[A-Za-z ]{2,50}$/.test(value.trim());
+    }
+
+    function isValidJourneyDate(value) {
+      if (!value) {
+        return false;
+      }
+      const inputDate = new Date(`${value}T00:00:00`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return !Number.isNaN(inputDate.getTime()) && inputDate >= today;
+    }
+
+    function renderTrainResponse(data) {
+      const direct = data.direct || [];
+      const connecting = data.connecting || [];
+
+      const lines = [];
+      lines.push("--- Direct Trains ---");
+      if (direct.length === 0) {
+        lines.push("No Direct Trains Found.");
+      } else {
+        direct.forEach((t) => lines.push(`Train ID: ${t.trainId} | ${t.trainName}`));
+      }
+
+      lines.push("");
+      lines.push("--- Connecting Trains ---");
+      if (connecting.length === 0) {
+        lines.push("No Connecting Trains Found.");
+      } else {
+        connecting.forEach((c) => lines.push(`${c.firstTrain} -> [${c.junction}] -> ${c.secondTrain}`));
+      }
+
+      trainResults.textContent = lines.join("\n");
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${apiBase}/api/health`);
+        if (!res.ok) {
+          throw new Error("Server not healthy");
+        }
+        healthBadge.textContent = "Backend connected on :8080";
+      } catch (error) {
+        healthBadge.textContent = "Backend not reachable. Start Java server first.";
+      }
+    }
+
+    document.getElementById("searchForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const source = document.getElementById("source").value.trim();
+      const destination = document.getElementById("destination").value.trim();
+
+      trainResults.textContent = "Searching trains...";
+
+      try {
+        const url = `${apiBase}/api/trains?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Search failed");
+        }
+        renderTrainResponse(data);
+      } catch (error) {
+        trainResults.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    document.getElementById("bookingForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const payload = {
+        userId: Number(document.getElementById("userId").value),
+        userName: document.getElementById("userName").value.trim(),
+        trainId: Number(document.getElementById("trainId").value),
+        journeyDate: document.getElementById("journeyDate").value,
+        seatCount: Number(document.getElementById("seatCount").value)
+      };
+
+      if (!isValidUserName(payload.userName)) {
+        bookingMessage.className = "msg-bad";
+        bookingMessage.textContent = "User name must contain only letters and spaces (2-50 chars).";
+        return;
+      }
+
+      if (!isValidJourneyDate(payload.journeyDate)) {
+        bookingMessage.className = "msg-bad";
+        bookingMessage.textContent = "Journey date must be today or a future date.";
+        return;
+      }
+
+      if (!Number.isInteger(payload.seatCount) || payload.seatCount < 1 || payload.seatCount > 6) {
+        bookingMessage.className = "msg-bad";
+        bookingMessage.textContent = "Seat count must be between 1 and 6.";
+        return;
+      }
+
+      bookingMessage.className = "";
+      bookingMessage.textContent = "Creating booking...";
+
+      try {
+        const res = await fetch(`${apiBase}/api/bookings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Booking failed");
+        }
+
+        bookingMessage.className = "msg-ok";
+        bookingMessage.textContent = `Booking successful. Booking ID: ${data.bookingId} | Train ID: ${data.trainId} (${data.trainName}) | ${data.source} -> ${data.destination}`;
+      } catch (error) {
+        bookingMessage.className = "msg-bad";
+        bookingMessage.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    document.getElementById("loadBookingsBtn").addEventListener("click", async () => {
+      bookingList.innerHTML = "<div>Loading bookings...</div>";
+      try {
+        const currentUserId = Number(document.getElementById("bookingUserId").value);
+        if (!Number.isInteger(currentUserId) || currentUserId <= 0) {
+          bookingList.innerHTML = "<div class=\"msg-bad\">Enter a valid User ID to load your bookings.</div>";
+          return;
+        }
+        const url = `${apiBase}/api/bookings?userId=${currentUserId}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to load bookings");
+        }
+
+        const rows = data.bookings || [];
+        if (rows.length === 0) {
+          bookingList.innerHTML = "<div>No bookings found.</div>";
+          return;
+        }
+
+        bookingList.innerHTML = "";
+        rows.forEach((row) => {
+          const card = document.createElement("div");
+          card.className = "booking-item";
+          card.innerHTML =
+            `<strong>Booking #${row.bookingId}</strong><br>` +
+            `User: ${row.userName} (ID ${row.userId})<br>` +
+            `Train: ${row.trainName} (ID ${row.trainId})<br>` +
+            `Route: ${row.source} -> ${row.destination}<br>` +
+            `Journey: ${row.journeyDate} | Seats: ${row.seatCount} | Status: ${row.status}`;
+          bookingList.appendChild(card);
+        });
+      } catch (error) {
+        bookingList.innerHTML = `<div class="msg-bad">Error: ${error.message}</div>`;
+      }
+    });
+
+    checkHealth();
+    document.getElementById("journeyDate").value = new Date().toISOString().slice(0, 10);
+  </script>
+</body>
+</html>

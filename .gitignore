@@ -1,0 +1,7 @@
+*.class
+
+# IDE
+.vscode/
+
+# Logs
+*.log

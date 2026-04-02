@@ -1,23 +1,34 @@
 package service;
 
 import model.*;
+import service.dao.BookingDao;
+import service.dao.TrainDao;
+import service.dao.UserDao;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Scanner;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 public class BookingService implements BookingOperations {
 
-    private TrainService trainService;
-    private Scanner scanner;
-    private DatabaseService databaseService;
+    private static final int MAX_SEATS_PER_TRAIN_PER_DAY = 120;
+
+    private final TrainService trainService;
+    private final Scanner scanner;
+    private final DatabaseService databaseService;
+    private final UserDao userDao;
+    private final TrainDao trainDao;
+    private final BookingDao bookingDao;
 
     public BookingService(TrainService trainService, Scanner scanner) {
         this.trainService = trainService;
         this.scanner = scanner;
         this.databaseService = new DatabaseService();
+        this.userDao = new UserDao();
+        this.trainDao = new TrainDao();
+        this.bookingDao = new BookingDao();
         this.databaseService.initializeSchema();
     }
 
@@ -27,9 +38,17 @@ public class BookingService implements BookingOperations {
         try {
             System.out.print("Enter User ID: ");
             int userId = Integer.parseInt(scanner.nextLine());
+            if (userId <= 0) {
+                System.out.println("User ID must be a positive number.");
+                return;
+            }
 
             System.out.print("Enter User Name: ");
             String name = scanner.nextLine();
+            if (!isValidUserName(name)) {
+                System.out.println("User name must contain only letters/spaces and be at least 2 characters.");
+                return;
+            }
 
             User user = new User(userId, name);
 
@@ -43,26 +62,51 @@ public class BookingService implements BookingOperations {
                 return;
             }
 
-            String sql = "INSERT INTO bookings (user_id, user_name, train_id, train_name, source, destination) VALUES (?, ?, ?, ?, ?, ?)";
+            System.out.print("Enter Journey Date (YYYY-MM-DD): ");
+            String journeyDate = scanner.nextLine().trim();
+            if (!isValidJourneyDate(journeyDate)) {
+                System.out.println("Journey date must be today or a future date in YYYY-MM-DD format.");
+                return;
+            }
 
-            try (Connection connection = databaseService.getConnection();
-                 PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            System.out.print("Enter Seat Count: ");
+            int seatCount = Integer.parseInt(scanner.nextLine());
+            if (!isValidSeatCount(seatCount)) {
+                System.out.println("Seat count must be between 1 and 6.");
+                return;
+            }
 
-                statement.setInt(1, user.getUserId());
-                statement.setString(2, user.getName());
-                statement.setInt(3, train.getTrainId());
-                statement.setString(4, train.getTrainName());
-                statement.setString(5, train.getSource());
-                statement.setString(6, train.getDestination());
+            try (Connection connection = databaseService.getConnection()) {
+                userDao.upsertUser(connection, user.getUserId(), user.getName());
 
-                statement.executeUpdate();
+                TrainDao.RouteEndpoints endpoints = trainDao.findRouteEndpoints(connection, train.getTrainId());
+                if (!endpoints.isComplete()) {
+                    System.out.println("Unable to resolve source/destination stations for selected train.");
+                    return;
+                }
 
-                try (ResultSet keys = statement.getGeneratedKeys()) {
-                    if (keys.next()) {
-                        System.out.println("Booking Successful! Booking ID: " + keys.getInt(1));
-                    } else {
-                        System.out.println("Booking Successful!");
-                    }
+                int reservedSeats = bookingDao.fetchReservedSeatsForTrainAndDate(connection, train.getTrainId(), journeyDate);
+                if (reservedSeats + seatCount > MAX_SEATS_PER_TRAIN_PER_DAY) {
+                    int available = Math.max(0, MAX_SEATS_PER_TRAIN_PER_DAY - reservedSeats);
+                    System.out.println("Booking failed. Only " + available + " seat(s) are available for this train on " + journeyDate + ".");
+                    return;
+                }
+
+                int bookingId = bookingDao.createBooking(
+                        connection,
+                        user.getUserId(),
+                        train.getTrainId(),
+                        endpoints.sourceStationId,
+                        endpoints.destinationStationId,
+                        journeyDate,
+                        seatCount
+                );
+
+                if (bookingId > 0) {
+                    System.out.println("Booking Successful! Booking ID: " + bookingId
+                            + " | Train ID: " + train.getTrainId());
+                } else {
+                    System.out.println("Booking Successful!");
                 }
             } catch (SQLException e) {
                 System.out.println("Booking failed due to database error: " + e.getMessage());
@@ -74,19 +118,35 @@ public class BookingService implements BookingOperations {
 
     @Override
     public void viewBookings() {
-        String sql = "SELECT booking_id, user_name, train_name FROM bookings ORDER BY booking_id";
+        System.out.print("Enter User ID to view bookings: ");
 
-        try (Connection connection = databaseService.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
+        int userId;
+        try {
+            userId = Integer.parseInt(scanner.nextLine());
+        } catch (NumberFormatException ex) {
+            System.out.println("Invalid User ID.");
+            return;
+        }
+
+        if (userId <= 0) {
+            System.out.println("User ID must be a positive number.");
+            return;
+        }
+
+        try (Connection connection = databaseService.getConnection()) {
+            java.util.List<BookingDao.BookingView> rows = bookingDao.fetchBookingsByUserId(connection, userId);
 
             boolean hasAnyBooking = false;
-            while (resultSet.next()) {
+            for (BookingDao.BookingView row : rows) {
                 hasAnyBooking = true;
                 System.out.println("-------------------");
-                System.out.println("Booking ID: " + resultSet.getInt("booking_id"));
-                System.out.println("User: " + resultSet.getString("user_name"));
-                System.out.println("Train: " + resultSet.getString("train_name"));
+                System.out.println("Booking ID: " + row.bookingId);
+                System.out.println("User: " + row.userName);
+                System.out.println("Train: " + row.trainName + " (ID " + row.trainId + ")");
+                System.out.println("Route: " + row.source + " -> " + row.destination);
+                System.out.println("Journey Date: " + row.journeyDate);
+                System.out.println("Seat Count: " + row.seatCount);
+                System.out.println("Status: " + row.status);
             }
 
             if (!hasAnyBooking) {
@@ -95,5 +155,26 @@ public class BookingService implements BookingOperations {
         } catch (SQLException e) {
             System.out.println("Unable to fetch bookings: " + e.getMessage());
         }
+    }
+
+    private boolean isValidUserName(String value) {
+        if (value == null) {
+            return false;
+        }
+        String trimmed = value.trim();
+        return trimmed.matches("[A-Za-z ]{2,50}");
+    }
+
+    private boolean isValidJourneyDate(String dateValue) {
+        try {
+            LocalDate parsed = LocalDate.parse(dateValue);
+            return !parsed.isBefore(LocalDate.now());
+        } catch (DateTimeParseException ex) {
+            return false;
+        }
+    }
+
+    private boolean isValidSeatCount(int seatCount) {
+        return seatCount >= 1 && seatCount <= 6;
     }
 }
