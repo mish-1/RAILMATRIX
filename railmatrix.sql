@@ -1,3 +1,4 @@
+show databases;
 CREATE DATABASE IF NOT EXISTS ConnectingTrainDB;
 USE ConnectingTrainDB;
 
@@ -174,3 +175,126 @@ WHERE NOT EXISTS (
 );
 
 SELECT t.train_id, t.train_number, t.train_name FROM `Train` t ORDER BY t.train_id;
+
+-- Function 1 to calculate fare
+DELIMITER $$
+
+CREATE FUNCTION calculate_fare(seats INT)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    RETURN seats * 150;
+END$$
+
+DELIMITER ;
+SELECT calculate_fare(3);
+
+-- Function 2 to calculate total number of bookings by user
+DELIMITER $$
+
+CREATE FUNCTION total_user_bookings(uid INT)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE total INT;
+
+    SELECT COUNT(*) INTO total
+    FROM Booking
+    WHERE user_id = uid;
+
+    RETURN total;
+END$$
+
+DELIMITER ;
+SELECT total_user_bookings(1);
+
+-- Procedure 1 to add bookings
+DROP PROCEDURE IF EXISTS add_booking;
+DELIMITER $$
+
+CREATE PROCEDURE add_booking(
+    IN uid INT,
+    IN tid INT,
+    IN src INT,
+    IN dest INT,
+    IN seats INT,
+    IN jdate DATE
+)
+BEGIN
+    INSERT INTO Booking(
+        user_id,
+        train_id,
+        source_station_id,
+        destination_station_id,
+        journey_date,
+        seat_count
+    )
+    VALUES(
+        uid,
+        tid,
+        src,
+        dest,
+        jdate,
+        seats
+    );
+END$$
+
+DELIMITER;
+
+CALL add_booking(1, 901, 901, 903, 2, '2026-05-01');
+
+-- Procedure 2 to view user bookings
+
+DROP PROCEDURE IF EXISTS view_user_bookings;
+
+DELIMITER $$
+
+CREATE PROCEDURE view_user_bookings(IN uid INT)
+BEGIN
+    SELECT 
+        b.booking_id,
+        u.user_name,
+        t.train_name,
+        s1.station_name AS source,
+        s2.station_name AS destination,
+        b.journey_date,
+        b.booking_date,
+        b.seat_count,
+        b.booking_status
+    FROM Booking b
+    JOIN User u ON b.user_id = u.user_id
+    JOIN Train t ON b.train_id = t.train_id
+    JOIN Station s1 ON b.source_station_id = s1.station_id
+    JOIN Station s2 ON b.destination_station_id = s2.station_id
+    WHERE b.user_id = uid;
+END$$
+
+DELIMITER ;
+CALL view_user_bookings(1);
+
+-- Trigger 1 to check seat limit
+DELIMITER $$
+
+CREATE TRIGGER check_seat_limit
+BEFORE INSERT ON Booking
+FOR EACH ROW
+BEGIN
+    IF NEW.seat_count > 6 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Max 6 seats allowed';
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- Trigger 2 to set auto booking date
+DELIMITER $$
+
+CREATE TRIGGER set_booking_date
+BEFORE INSERT ON Booking
+FOR EACH ROW
+BEGIN
+    SET NEW.booking_date = CURDATE();
+END$$
+
+DELIMITER ;
