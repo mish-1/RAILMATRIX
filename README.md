@@ -10,6 +10,11 @@ RailMatrix is a Java + MySQL train booking project with:
 - Search direct and connecting trains
 - Create bookings with journey date and seat count
 - View only user-specific bookings (privacy-safe)
+- Java-first flow: frontend reads booking rules/date from backend metadata (`/api/meta`)
+- Automatic startup initialization of required DB routines:
+  - Functions: `calculate_fare`, `total_user_bookings`
+  - Procedures: `add_booking`, `view_user_bookings`
+  - Triggers: `check_seat_limit`, `set_booking_date`
 - Booking limits:
   - Seat count per booking: 1 to 6
   - Seat capacity per train per date: 120
@@ -36,8 +41,14 @@ RailMatrix is a Java + MySQL train booking project with:
 
 ## Database Setup
 
-1. Open MySQL and run [railmatrix.sql](railmatrix.sql).
-2. Ensure MySQL user/password match your environment.
+1. Ensure MySQL is running and your DB user/password are correct.
+2. Optionally run [railmatrix.sql](railmatrix.sql) for full schema and sample seed.
+3. Start the app. Java auto-creates/refreshes required booking functions, procedures, and triggers at startup.
+
+Recommended MySQL privileges for the app user on the target DB:
+- `CREATE`, `DROP`, `ALTER`
+- `CREATE ROUTINE`, `ALTER ROUTINE`, `EXECUTE`
+- `TRIGGER`
 
 Optional environment variables (if you want custom values):
 - RAILMATRIX_DB_URL
@@ -74,6 +85,10 @@ Base URL: http://localhost:8080
 - GET /api/health
   - Checks server status
 
+- GET /api/meta
+  - Returns backend-driven app metadata used by frontend
+  - Includes booking limits and server date
+
 - GET /api/trains?source={source}&destination={destination}
   - Returns direct and connecting trains
 
@@ -98,4 +113,5 @@ Base URL: http://localhost:8080
 ## Notes
 
 - [output-viewer.html](output-viewer.html) only shows user-scoped bookings.
+- If startup fails with `Address already in use: bind`, another process is already using port `8080`. Stop the old process and run [run-web.ps1](run-web.ps1) again.
 - .class files are ignored via [.gitignore](.gitignore).
