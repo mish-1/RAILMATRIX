@@ -101,10 +101,57 @@ public class DatabaseService {
             statement.executeUpdate(createUser);
             statement.executeUpdate(createBooking);
             statement.executeUpdate(createTicket);
+            initializeBookingRoutines(statement);
         } catch (SQLException e) {
             System.out.println("Database setup failed: " + e.getMessage());
         }
     }
+
+        private void initializeBookingRoutines(Statement statement) throws SQLException {
+        statement.executeUpdate("DROP TRIGGER IF EXISTS check_seat_limit");
+        statement.executeUpdate("DROP TRIGGER IF EXISTS set_booking_date");
+        statement.executeUpdate("DROP PROCEDURE IF EXISTS add_booking");
+        statement.executeUpdate("DROP PROCEDURE IF EXISTS view_user_bookings");
+        statement.executeUpdate("DROP FUNCTION IF EXISTS calculate_fare");
+        statement.executeUpdate("DROP FUNCTION IF EXISTS total_user_bookings");
+
+        statement.executeUpdate("CREATE FUNCTION calculate_fare(seats INT) RETURNS INT DETERMINISTIC RETURN seats * 150");
+
+        statement.executeUpdate("CREATE FUNCTION total_user_bookings(uid INT) RETURNS INT DETERMINISTIC READS SQL DATA "
+            + "BEGIN DECLARE total INT; "
+            + "SELECT COUNT(*) INTO total FROM `Booking` WHERE user_id = uid; "
+            + "RETURN total; END");
+
+        statement.executeUpdate("CREATE PROCEDURE add_booking(IN uid INT, IN tid INT, IN src INT, IN dest INT, IN seats INT, IN jdate DATE) "
+            + "BEGIN "
+            + "INSERT INTO `Booking` (user_id, train_id, source_station_id, destination_station_id, journey_date, booking_date, seat_count, booking_status) "
+            + "VALUES (uid, tid, src, dest, jdate, CURDATE(), seats, 'Confirmed'); "
+            + "END");
+
+        statement.executeUpdate("CREATE PROCEDURE view_user_bookings(IN uid INT) "
+            + "BEGIN "
+            + "SELECT b.booking_id, u.user_name, t.train_name, "
+            + "s1.station_name AS source, s2.station_name AS destination, "
+            + "b.journey_date, b.booking_date, b.seat_count, "
+            + "COALESCE(NULLIF(TRIM(b.booking_status), ''), 'Confirmed') AS booking_status "
+            + "FROM `Booking` b "
+            + "JOIN `User` u ON b.user_id = u.user_id "
+            + "JOIN `Train` t ON b.train_id = t.train_id "
+            + "JOIN `Station` s1 ON b.source_station_id = s1.station_id "
+            + "JOIN `Station` s2 ON b.destination_station_id = s2.station_id "
+            + "WHERE b.user_id = uid; "
+            + "END");
+
+        statement.executeUpdate("CREATE TRIGGER check_seat_limit BEFORE INSERT ON `Booking` FOR EACH ROW "
+            + "BEGIN "
+            + "IF NEW.seat_count > 6 THEN "
+            + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Max 6 seats allowed'; "
+            + "END IF; "
+            + "END");
+
+        statement.executeUpdate("CREATE TRIGGER set_booking_date BEFORE INSERT ON `Booking` FOR EACH ROW "
+            + "BEGIN SET NEW.booking_date = CURDATE(); END");
+        }
 
     public void initializeTrainSearchSchema() {
         String createStation = "CREATE TABLE IF NOT EXISTS `Station` ("

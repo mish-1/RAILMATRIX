@@ -25,7 +25,7 @@ public class TrainService {
     }
 
     public void displayTrains() {
-        String sql = "SELECT train_id, train_name FROM TRAIN ORDER BY train_id";
+        String sql = "SELECT train_id, train_name FROM `Train` ORDER BY train_id";
 
         try (Connection con = databaseService.getConnection();
              PreparedStatement ps = con.prepareStatement(sql);
@@ -106,11 +106,11 @@ public class TrainService {
 
             String directQuery =
                     "SELECT DISTINCT t.train_id, t.train_name " +
-                    "FROM ROUTE r1 " +
-                    "JOIN ROUTE r2 ON r1.train_id = r2.train_id " +
-                    "JOIN TRAIN t ON t.train_id = r1.train_id " +
-                    "JOIN STATION s1 ON r1.station_id = s1.station_id " +
-                    "JOIN STATION s2 ON r2.station_id = s2.station_id " +
+                    "FROM `Route` r1 " +
+                    "JOIN `Route` r2 ON r1.train_id = r2.train_id " +
+                    "JOIN `Train` t ON t.train_id = r1.train_id " +
+                    "JOIN `Station` s1 ON r1.station_id = s1.station_id " +
+                    "JOIN `Station` s2 ON r2.station_id = s2.station_id " +
                     "WHERE LOWER(TRIM(s1.station_name)) LIKE ? " +
                     "AND LOWER(TRIM(s2.station_name)) LIKE ? " +
                     "AND r1.stop_number < r2.stop_number";
@@ -144,15 +144,15 @@ public class TrainService {
                     "t1.train_id AS t1_id, t1.train_name AS first_train, " +
                     "t2.train_id AS t2_id, t2.train_name AS second_train, " +
                     "sj.station_name AS junction " +
-                    "FROM ROUTE r1 " +
-                    "JOIN ROUTE rj1 ON r1.train_id = rj1.train_id " +
-                    "JOIN ROUTE rj2 ON rj1.station_id = rj2.station_id " +
-                    "JOIN ROUTE r2 ON r2.train_id = rj2.train_id " +
-                    "JOIN TRAIN t1 ON t1.train_id = r1.train_id " +
-                    "JOIN TRAIN t2 ON t2.train_id = r2.train_id " +
-                    "JOIN STATION s1 ON r1.station_id = s1.station_id " +
-                    "JOIN STATION s2 ON r2.station_id = s2.station_id " +
-                    "JOIN STATION sj ON rj1.station_id = sj.station_id " +
+                    "FROM `Route` r1 " +
+                    "JOIN `Route` rj1 ON r1.train_id = rj1.train_id " +
+                    "JOIN `Route` rj2 ON rj1.station_id = rj2.station_id " +
+                    "JOIN `Route` r2 ON r2.train_id = rj2.train_id " +
+                    "JOIN `Train` t1 ON t1.train_id = r1.train_id " +
+                    "JOIN `Train` t2 ON t2.train_id = r2.train_id " +
+                    "JOIN `Station` s1 ON r1.station_id = s1.station_id " +
+                    "JOIN `Station` s2 ON r2.station_id = s2.station_id " +
+                    "JOIN `Station` sj ON rj1.station_id = sj.station_id " +
                     "WHERE LOWER(TRIM(s1.station_name)) LIKE ? " +
                     "AND LOWER(TRIM(s2.station_name)) LIKE ? " +
                     "AND r1.stop_number < rj1.stop_number " +

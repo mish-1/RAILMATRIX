@@ -1,10 +1,11 @@
 package service.dao;
 
+import java.sql.CallableStatement;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,32 +20,116 @@ public class BookingDao {
             String journeyDate,
             int seatCount
     ) throws SQLException {
-        String sql = "INSERT INTO `Booking` (user_id, train_id, source_station_id, destination_station_id, journey_date, booking_date, seat_count, booking_status) "
-                + "VALUES (?, ?, ?, ?, ?, CURDATE(), ?, 'Confirmed')";
+        int bookingId = createBookingUsingProcedure(
+                connection,
+                userId,
+                trainId,
+                sourceStationId,
+                destinationStationId,
+                journeyDate,
+                seatCount
+        );
 
-        try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        if (bookingId <= 0) {
+            throw new SQLException("Booking creation failed via add_booking procedure.");
+        }
+
+        return bookingId;
+    }
+
+    private int createBookingUsingProcedure(
+            Connection connection,
+            int userId,
+            int trainId,
+            int sourceStationId,
+            int destinationStationId,
+            String journeyDate,
+            int seatCount
+    ) throws SQLException {
+        String call = "{CALL add_booking(?, ?, ?, ?, ?, ?)}";
+
+        try (CallableStatement statement = connection.prepareCall(call)) {
             statement.setInt(1, userId);
             statement.setInt(2, trainId);
             statement.setInt(3, sourceStationId);
             statement.setInt(4, destinationStationId);
-            statement.setString(5, journeyDate);
-            statement.setInt(6, seatCount);
-            statement.executeUpdate();
+            statement.setInt(5, seatCount);
+            statement.setDate(6, Date.valueOf(journeyDate));
+            statement.execute();
+        }
 
-            try (ResultSet keys = statement.getGeneratedKeys()) {
-                if (keys.next()) {
-                    return keys.getInt(1);
+        try (PreparedStatement keyStatement = connection.prepareStatement("SELECT LAST_INSERT_ID() AS booking_id");
+             ResultSet keys = keyStatement.executeQuery()) {
+            if (keys.next()) {
+                return keys.getInt("booking_id");
+            }
+        }
+
+        throw new SQLException("Unable to fetch booking_id after add_booking procedure call.");
+    }
+
+    public int fetchFareUsingFunction(Connection connection, int seatCount) throws SQLException {
+        String sql = "SELECT calculate_fare(?) AS fare";
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, seatCount);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt("fare");
                 }
             }
         }
 
-        return -1;
+        throw new SQLException("calculate_fare function returned no result.");
+    }
+
+    public int fetchTotalUserBookingsUsingFunction(Connection connection, int userId) throws SQLException {
+        String sql = "SELECT total_user_bookings(?) AS total";
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, userId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt("total");
+                }
+            }
+        }
+
+        throw new SQLException("total_user_bookings function returned no result.");
+    }
+
+    public List<BookingView> fetchBookingsByUserViaProcedure(Connection connection, int userId) throws SQLException {
+        String call = "{CALL view_user_bookings(?)}";
+        List<BookingView> rows = new ArrayList<>();
+
+        try (CallableStatement statement = connection.prepareCall(call)) {
+            statement.setInt(1, userId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    BookingView row = new BookingView();
+                    row.bookingId = resultSet.getInt("booking_id");
+                    row.userId = userId;
+                    row.userName = resultSet.getString("user_name");
+                    row.trainId = -1;
+                    row.trainName = resultSet.getString("train_name");
+                    row.source = resultSet.getString("source");
+                    row.destination = resultSet.getString("destination");
+                    row.journeyDate = resultSet.getString("journey_date");
+                    row.bookingDate = resultSet.getString("booking_date");
+                    row.seatCount = resultSet.getInt("seat_count");
+                    row.status = resultSet.getString("booking_status");
+                    rows.add(row);
+                }
+            }
+        }
+
+        return rows;
     }
 
     public List<BookingView> fetchAllBookings(Connection connection) throws SQLException {
         String sql = "SELECT b.booking_id, b.user_id, u.user_name, b.train_id, t.train_name, "
                 + "s1.station_name AS source, s2.station_name AS destination, "
-                + "b.journey_date, b.seat_count, b.booking_status "
+                + "b.journey_date, b.booking_date, b.seat_count, b.booking_status "
                 + "FROM `Booking` b "
                 + "JOIN `User` u ON u.user_id = b.user_id "
                 + "JOIN `Train` t ON t.train_id = b.train_id "
@@ -68,7 +153,7 @@ public class BookingDao {
     public List<BookingView> fetchBookingsByUserId(Connection connection, int userId) throws SQLException {
         String sql = "SELECT b.booking_id, b.user_id, u.user_name, b.train_id, t.train_name, "
                 + "s1.station_name AS source, s2.station_name AS destination, "
-                + "b.journey_date, b.seat_count, b.booking_status "
+                + "b.journey_date, b.booking_date, b.seat_count, b.booking_status "
                 + "FROM `Booking` b "
                 + "JOIN `User` u ON u.user_id = b.user_id "
                 + "JOIN `Train` t ON t.train_id = b.train_id "
@@ -120,6 +205,7 @@ public class BookingDao {
         row.source = resultSet.getString("source");
         row.destination = resultSet.getString("destination");
         row.journeyDate = resultSet.getString("journey_date");
+        row.bookingDate = resultSet.getString("booking_date");
         row.seatCount = resultSet.getInt("seat_count");
         row.status = resultSet.getString("booking_status");
         return row;
@@ -134,6 +220,7 @@ public class BookingDao {
         public String source;
         public String destination;
         public String journeyDate;
+        public String bookingDate;
         public int seatCount;
         public String status;
     }

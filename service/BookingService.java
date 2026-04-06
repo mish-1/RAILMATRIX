@@ -102,12 +102,32 @@ public class BookingService implements BookingOperations {
                         seatCount
                 );
 
+                int fare = bookingDao.fetchFareUsingFunction(connection, seatCount);
+                int totalBookingsByUser = bookingDao.fetchTotalUserBookingsUsingFunction(connection, user.getUserId());
+
+                BookingDao.BookingView insertedRow = null;
+                java.util.List<BookingDao.BookingView> rows = bookingDao.fetchBookingsByUserViaProcedure(connection, user.getUserId());
+                for (BookingDao.BookingView row : rows) {
+                    if (row.bookingId == bookingId) {
+                        insertedRow = row;
+                        break;
+                    }
+                }
+
                 if (bookingId > 0) {
                     System.out.println("Booking Successful! Booking ID: " + bookingId
                             + " | Train ID: " + train.getTrainId());
                 } else {
                     System.out.println("Booking Successful!");
                 }
+
+                System.out.println("Fare: " + fare);
+                if (insertedRow == null) {
+                    throw new SQLException("Created booking was not returned by view_user_bookings procedure.");
+                }
+                System.out.println("Booking Date: " + insertedRow.bookingDate);
+                System.out.println("Status: " + insertedRow.status);
+                System.out.println("Total bookings by this user: " + totalBookingsByUser);
             } catch (SQLException e) {
                 System.out.println("Booking failed due to database error: " + e.getMessage());
             }
@@ -134,7 +154,8 @@ public class BookingService implements BookingOperations {
         }
 
         try (Connection connection = databaseService.getConnection()) {
-            java.util.List<BookingDao.BookingView> rows = bookingDao.fetchBookingsByUserId(connection, userId);
+            java.util.List<BookingDao.BookingView> rows = bookingDao.fetchBookingsByUserViaProcedure(connection, userId);
+            int totalBookingsByUser = bookingDao.fetchTotalUserBookingsUsingFunction(connection, userId);
 
             boolean hasAnyBooking = false;
             for (BookingDao.BookingView row : rows) {
@@ -142,15 +163,24 @@ public class BookingService implements BookingOperations {
                 System.out.println("-------------------");
                 System.out.println("Booking ID: " + row.bookingId);
                 System.out.println("User: " + row.userName);
-                System.out.println("Train: " + row.trainName + " (ID " + row.trainId + ")");
+                if (row.trainId > 0) {
+                    System.out.println("Train: " + row.trainName + " (ID " + row.trainId + ")");
+                } else {
+                    System.out.println("Train: " + row.trainName);
+                }
                 System.out.println("Route: " + row.source + " -> " + row.destination);
                 System.out.println("Journey Date: " + row.journeyDate);
+                if (row.bookingDate != null && !row.bookingDate.isBlank()) {
+                    System.out.println("Booking Date: " + row.bookingDate);
+                }
                 System.out.println("Seat Count: " + row.seatCount);
                 System.out.println("Status: " + row.status);
             }
 
             if (!hasAnyBooking) {
                 System.out.println("No bookings found.");
+            } else {
+                System.out.println("\nTotal bookings by this user: " + totalBookingsByUser);
             }
         } catch (SQLException e) {
             System.out.println("Unable to fetch bookings: " + e.getMessage());

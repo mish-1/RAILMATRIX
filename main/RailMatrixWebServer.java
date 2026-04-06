@@ -29,6 +29,9 @@ import java.util.Map;
 public class RailMatrixWebServer {
 
     private static final int PORT = 8080;
+    private static final String APP_NAME = "RailMatrix";
+    private static final int MIN_SEATS_PER_BOOKING = 1;
+    private static final int MAX_SEATS_PER_BOOKING = 6;
     private static final int MAX_SEATS_PER_TRAIN_PER_DAY = 120;
 
     private final DatabaseService databaseService;
@@ -55,6 +58,7 @@ public class RailMatrixWebServer {
 
         server.createContext("/", new StaticPageHandler());
         server.createContext("/api/health", new HealthHandler());
+        server.createContext("/api/meta", new MetaHandler());
         server.createContext("/api/trains", new TrainsHandler());
         server.createContext("/api/bookings", new BookingsHandler());
 
@@ -104,6 +108,28 @@ public class RailMatrixWebServer {
         }
     }
 
+    private class MetaHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, "{\"error\":\"Method not allowed\"}");
+                return;
+            }
+
+            String json = "{" +
+                    "\"appName\":\"" + APP_NAME + "\"," +
+                    "\"serverDate\":\"" + LocalDate.now() + "\"," +
+                    "\"bookingRules\":{" +
+                    "\"minSeatsPerBooking\":" + MIN_SEATS_PER_BOOKING + "," +
+                    "\"maxSeatsPerBooking\":" + MAX_SEATS_PER_BOOKING + "," +
+                    "\"maxSeatsPerTrainPerDay\":" + MAX_SEATS_PER_TRAIN_PER_DAY +
+                    "}" +
+                    "}";
+
+            sendJson(exchange, 200, json);
+        }
+    }
+
     private class TrainsHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -125,11 +151,11 @@ public class RailMatrixWebServer {
 
             String directQuery =
                     "SELECT DISTINCT t.train_id, t.train_name " +
-                    "FROM ROUTE r1 " +
-                    "JOIN ROUTE r2 ON r1.train_id = r2.train_id " +
-                    "JOIN TRAIN t ON t.train_id = r1.train_id " +
-                    "JOIN STATION s1 ON r1.station_id = s1.station_id " +
-                    "JOIN STATION s2 ON r2.station_id = s2.station_id " +
+                    "FROM `Route` r1 " +
+                    "JOIN `Route` r2 ON r1.train_id = r2.train_id " +
+                    "JOIN `Train` t ON t.train_id = r1.train_id " +
+                    "JOIN `Station` s1 ON r1.station_id = s1.station_id " +
+                    "JOIN `Station` s2 ON r2.station_id = s2.station_id " +
                     "WHERE LOWER(TRIM(s1.station_name)) LIKE ? " +
                     "AND LOWER(TRIM(s2.station_name)) LIKE ? " +
                     "AND r1.stop_number < r2.stop_number " +
@@ -140,15 +166,15 @@ public class RailMatrixWebServer {
                     "t1.train_id AS t1_id, t1.train_name AS first_train, " +
                     "t2.train_id AS t2_id, t2.train_name AS second_train, " +
                     "sj.station_name AS junction " +
-                    "FROM ROUTE r1 " +
-                    "JOIN ROUTE rj1 ON r1.train_id = rj1.train_id " +
-                    "JOIN ROUTE rj2 ON rj1.station_id = rj2.station_id " +
-                    "JOIN ROUTE r2 ON r2.train_id = rj2.train_id " +
-                    "JOIN TRAIN t1 ON t1.train_id = r1.train_id " +
-                    "JOIN TRAIN t2 ON t2.train_id = r2.train_id " +
-                    "JOIN STATION s1 ON r1.station_id = s1.station_id " +
-                    "JOIN STATION s2 ON r2.station_id = s2.station_id " +
-                    "JOIN STATION sj ON rj1.station_id = sj.station_id " +
+                    "FROM `Route` r1 " +
+                    "JOIN `Route` rj1 ON r1.train_id = rj1.train_id " +
+                    "JOIN `Route` rj2 ON rj1.station_id = rj2.station_id " +
+                    "JOIN `Route` r2 ON r2.train_id = rj2.train_id " +
+                    "JOIN `Train` t1 ON t1.train_id = r1.train_id " +
+                    "JOIN `Train` t2 ON t2.train_id = r2.train_id " +
+                    "JOIN `Station` s1 ON r1.station_id = s1.station_id " +
+                    "JOIN `Station` s2 ON r2.station_id = s2.station_id " +
+                    "JOIN `Station` sj ON rj1.station_id = sj.station_id " +
                     "WHERE LOWER(TRIM(s1.station_name)) LIKE ? " +
                     "AND LOWER(TRIM(s2.station_name)) LIKE ? " +
                     "AND r1.stop_number < rj1.stop_number " +
@@ -225,7 +251,8 @@ public class RailMatrixWebServer {
                     sendJson(exchange, 400, "{\"error\":\"userId must be a positive number\"}");
                     return;
                 }
-                List<BookingDao.BookingView> data = bookingDao.fetchBookingsByUserId(con, userId);
+                List<BookingDao.BookingView> data = bookingDao.fetchBookingsByUserViaProcedure(con, userId);
+                int totalBookingsByUser = bookingDao.fetchTotalUserBookingsUsingFunction(con, userId);
 
                 for (BookingDao.BookingView rs : data) {
                     rows.add("{" +
@@ -237,15 +264,20 @@ public class RailMatrixWebServer {
                             "\"source\":\"" + escapeJson(rs.source) + "\"," +
                             "\"destination\":\"" + escapeJson(rs.destination) + "\"," +
                             "\"journeyDate\":\"" + escapeJson(rs.journeyDate) + "\"," +
+                            "\"bookingDate\":\"" + escapeJson(rs.bookingDate) + "\"," +
                             "\"seatCount\":" + rs.seatCount + "," +
                             "\"status\":\"" + escapeJson(rs.status) + "\"" +
                             "}");
                 }
 
-                sendJson(exchange, 200, "{\"bookings\":[" + String.join(",", rows) + "]}");
+                sendJson(exchange, 200, "{\"totalBookings\":" + totalBookingsByUser + ",\"bookings\":[" + String.join(",", rows) + "]}");
             } catch (NumberFormatException e) {
                 sendJson(exchange, 400, "{\"error\":\"Invalid userId value\"}");
             } catch (SQLException e) {
+                if (isRoutineMissingError(e)) {
+                    sendJson(exchange, 500, "{\"error\":\"Required database routine is missing. Run railmatrix.sql to create procedures/functions/triggers.\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
+                    return;
+                }
                 sendJson(exchange, 500, "{\"error\":\"Unable to fetch bookings\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
             }
         }
@@ -275,10 +307,10 @@ public class RailMatrixWebServer {
                 return;
             }
             if (seatCount <= 0) {
-                seatCount = 1;
+                seatCount = MIN_SEATS_PER_BOOKING;
             }
             if (!isValidSeatCount(seatCount)) {
-                sendJson(exchange, 400, "{\"error\":\"seatCount must be between 1 and 6\"}");
+                sendJson(exchange, 400, "{\"error\":\"seatCount must be between " + MIN_SEATS_PER_BOOKING + " and " + MAX_SEATS_PER_BOOKING + "\"}");
                 return;
             }
 
@@ -314,6 +346,24 @@ public class RailMatrixWebServer {
                         seatCount
                 );
 
+                int fare = bookingDao.fetchFareUsingFunction(con, seatCount);
+                int totalBookingsByUser = bookingDao.fetchTotalUserBookingsUsingFunction(con, userId);
+
+                String bookingDate = "";
+                String bookingStatus = "";
+                List<BookingDao.BookingView> viaProcedure = bookingDao.fetchBookingsByUserViaProcedure(con, userId);
+                for (BookingDao.BookingView row : viaProcedure) {
+                    if (row.bookingId == bookingId) {
+                        bookingDate = safeTrim(row.bookingDate);
+                        bookingStatus = safeTrim(row.status);
+                        break;
+                    }
+                }
+
+                if (bookingDate.isEmpty() || bookingStatus.isEmpty()) {
+                    throw new SQLException("Created booking was not returned by view_user_bookings procedure.");
+                }
+
                 sendJson(exchange, 201, "{" +
                         "\"message\":\"Booking successful\"," +
                         "\"bookingId\":" + bookingId + "," +
@@ -322,9 +372,17 @@ public class RailMatrixWebServer {
                         "\"source\":\"" + escapeJson(endpoints.sourceStationName) + "\"," +
                         "\"destination\":\"" + escapeJson(endpoints.destinationStationName) + "\"," +
                         "\"journeyDate\":\"" + escapeJson(journeyDate) + "\"," +
-                        "\"seatCount\":" + seatCount +
+                        "\"seatCount\":" + seatCount + "," +
+                        "\"fare\":" + fare + "," +
+                        "\"bookingDate\":\"" + escapeJson(bookingDate) + "\"," +
+                        "\"status\":\"" + escapeJson(bookingStatus) + "\"," +
+                        "\"totalBookings\":" + totalBookingsByUser +
                         "}");
             } catch (SQLException e) {
+                if (isRoutineMissingError(e)) {
+                    sendJson(exchange, 500, "{\"error\":\"Required database routine is missing. Run railmatrix.sql to create procedures/functions/triggers.\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
+                    return;
+                }
                 sendJson(exchange, 500, "{\"error\":\"Booking failed\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
             }
         }
@@ -372,7 +430,7 @@ public class RailMatrixWebServer {
     }
 
     private static boolean isValidSeatCount(int seatCount) {
-        return seatCount >= 1 && seatCount <= 6;
+        return seatCount >= MIN_SEATS_PER_BOOKING && seatCount <= MAX_SEATS_PER_BOOKING;
     }
 
     private static String readRequestBody(InputStream inputStream) throws IOException {
@@ -453,6 +511,13 @@ public class RailMatrixWebServer {
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
                 .replace("\r", "\\r");
+    }
+
+    private static boolean isRoutineMissingError(SQLException e) {
+        int code = e.getErrorCode();
+        String message = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+        return code == 1305
+                || (message.contains("does not exist") && (message.contains("procedure") || message.contains("function")));
     }
 
     private static void sendJson(HttpExchange exchange, int statusCode, String payload) throws IOException {

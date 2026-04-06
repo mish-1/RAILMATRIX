@@ -29,7 +29,7 @@ public class RailMatrixApp {
             System.out.println("\nWhat would you like to do?");
             System.out.println("1. Book a Ticket");
             System.out.println("2. View My Bookings");
-            System.out.println("3. Search Again");
+            System.out.println("3. Search train");
             System.out.println("4. Exit");
             System.out.print("Choose option: ");
 

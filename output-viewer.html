@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -192,6 +193,24 @@
       padding: 12px;
     }
 
+    .rules-hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+
+    .booking-summary {
+      margin-top: 8px;
+      border: 1px dashed #b8c7d6;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
     @media (min-width: 920px) {
       .board {
         grid-template-columns: 1fr 1fr;
@@ -206,7 +225,7 @@
 <body>
   <main class="layout">
     <section class="hero">
-      <h1>RAILMATRIX</h1>
+      <h1 id="appTitle">RAILMATRIX</h1>
       <p>Search trains, create bookings, and view your booking history from a single interface.</p>
       <span id="healthBadge" class="status">Checking server...</span>
     </section>
@@ -258,6 +277,7 @@
             </div>
           </div>
           <button type="submit">Book Ticket</button>
+          <div id="rulesHint" class="rules-hint"></div>
           <div id="bookingMessage"></div>
         </form>
 
@@ -283,19 +303,71 @@
     const trainResults = document.getElementById("trainResults");
     const bookingMessage = document.getElementById("bookingMessage");
     const bookingList = document.getElementById("bookingList");
+    const rulesHint = document.getElementById("rulesHint");
+    const appTitle = document.getElementById("appTitle");
 
-    function isValidUserName(value) {
-      return /^[A-Za-z ]{2,50}$/.test(value.trim());
+    let meta = {
+      appName: "RAILMATRIX",
+      serverDate: new Date().toISOString().slice(0, 10),
+      bookingRules: {
+        minSeatsPerBooking: 1,
+        maxSeatsPerBooking: 6,
+        maxSeatsPerTrainPerDay: 120
+      }
+    };
+
+    function safeText(value, fallback = "N/A") {
+      if (value === null || value === undefined) {
+        return fallback;
+      }
+      const str = String(value).trim();
+      return str.length === 0 ? fallback : str;
     }
 
-    function isValidJourneyDate(value) {
-      if (!value) {
-        return false;
+    function applyMetaToUi() {
+      const rules = meta.bookingRules || {};
+      const minSeats = Number.isInteger(rules.minSeatsPerBooking) ? rules.minSeatsPerBooking : 1;
+      const maxSeats = Number.isInteger(rules.maxSeatsPerBooking) ? rules.maxSeatsPerBooking : 6;
+      const maxPerTrain = Number.isInteger(rules.maxSeatsPerTrainPerDay) ? rules.maxSeatsPerTrainPerDay : 120;
+
+      const seatInput = document.getElementById("seatCount");
+      seatInput.min = String(minSeats);
+      seatInput.max = String(maxSeats);
+      if (!seatInput.value || Number(seatInput.value) < minSeats) {
+        seatInput.value = String(minSeats);
       }
-      const inputDate = new Date(`${value}T00:00:00`);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return !Number.isNaN(inputDate.getTime()) && inputDate >= today;
+
+      const journeyDateInput = document.getElementById("journeyDate");
+      journeyDateInput.min = safeText(meta.serverDate, new Date().toISOString().slice(0, 10));
+      if (!journeyDateInput.value) {
+        journeyDateInput.value = journeyDateInput.min;
+      }
+
+      appTitle.textContent = safeText(meta.appName, "RAILMATRIX");
+      document.title = safeText(meta.appName, "RAILMATRIX");
+
+      rulesHint.textContent = `Rules from Java backend: seats per booking ${minSeats}-${maxSeats}, max ${maxPerTrain} seats per train/day. Server date: ${journeyDateInput.min}.`;
+    }
+
+    async function loadMeta() {
+      try {
+        const res = await fetch(`${apiBase}/api/meta`);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to load backend metadata");
+        }
+        meta = {
+          ...meta,
+          ...data,
+          bookingRules: {
+            ...meta.bookingRules,
+            ...(data.bookingRules || {})
+          }
+        };
+      } catch (error) {
+        // Keep defaults when metadata endpoint is temporarily unavailable.
+      }
+      applyMetaToUi();
     }
 
     function renderTrainResponse(data) {
@@ -364,21 +436,9 @@
         seatCount: Number(document.getElementById("seatCount").value)
       };
 
-      if (!isValidUserName(payload.userName)) {
+      if (!Number.isInteger(payload.userId) || payload.userId <= 0 || !Number.isInteger(payload.trainId) || payload.trainId <= 0) {
         bookingMessage.className = "msg-bad";
-        bookingMessage.textContent = "User name must contain only letters and spaces (2-50 chars).";
-        return;
-      }
-
-      if (!isValidJourneyDate(payload.journeyDate)) {
-        bookingMessage.className = "msg-bad";
-        bookingMessage.textContent = "Journey date must be today or a future date.";
-        return;
-      }
-
-      if (!Number.isInteger(payload.seatCount) || payload.seatCount < 1 || payload.seatCount > 6) {
-        bookingMessage.className = "msg-bad";
-        bookingMessage.textContent = "Seat count must be between 1 and 6.";
+        bookingMessage.textContent = "User ID and Train ID must be positive numbers.";
         return;
       }
 
@@ -393,11 +453,20 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error || "Booking failed");
+          let details = data.error || "Booking failed";
+          if (typeof data.availableSeats === "number") {
+            details += ` (Available seats: ${data.availableSeats})`;
+          }
+          throw new Error(details);
         }
 
         bookingMessage.className = "msg-ok";
-        bookingMessage.textContent = `Booking successful. Booking ID: ${data.bookingId} | Train ID: ${data.trainId} (${data.trainName}) | ${data.source} -> ${data.destination}`;
+        bookingMessage.innerHTML =
+          `Booking successful. Booking ID: ${safeText(data.bookingId)} | ` +
+          `Train ID: ${safeText(data.trainId)} (${safeText(data.trainName)}) | ` +
+          `${safeText(data.source)} -> ${safeText(data.destination)}<br>` +
+          `Fare: ${safeText(data.fare)} | Booking Date: ${safeText(data.bookingDate)} | ` +
+          `Status: ${safeText(data.status)} | Total Bookings: ${safeText(data.totalBookings)}`;
       } catch (error) {
         bookingMessage.className = "msg-bad";
         bookingMessage.textContent = `Error: ${error.message}`;
@@ -422,20 +491,24 @@
 
         const rows = data.bookings || [];
         if (rows.length === 0) {
-          bookingList.innerHTML = "<div>No bookings found.</div>";
+          bookingList.innerHTML = `<div class="booking-summary">Total Bookings: ${safeText(data.totalBookings, "0")}</div><div>No bookings found.</div>`;
           return;
         }
 
-        bookingList.innerHTML = "";
+        bookingList.innerHTML = `<div class="booking-summary">Total Bookings: ${safeText(data.totalBookings, String(rows.length))}</div>`;
         rows.forEach((row) => {
           const card = document.createElement("div");
           card.className = "booking-item";
+          const trainLabel = Number(row.trainId) > 0
+            ? `${safeText(row.trainName)} (ID ${safeText(row.trainId)})`
+            : `${safeText(row.trainName)}`;
           card.innerHTML =
             `<strong>Booking #${row.bookingId}</strong><br>` +
             `User: ${row.userName} (ID ${row.userId})<br>` +
-            `Train: ${row.trainName} (ID ${row.trainId})<br>` +
-            `Route: ${row.source} -> ${row.destination}<br>` +
-            `Journey: ${row.journeyDate} | Seats: ${row.seatCount} | Status: ${row.status}`;
+            `Train: ${trainLabel}<br>` +
+            `Route: ${safeText(row.source)} -> ${safeText(row.destination)}<br>` +
+            `Journey: ${safeText(row.journeyDate)} | Booking Date: ${safeText(row.bookingDate)}<br>` +
+            `Seats: ${safeText(row.seatCount)} | Status: ${safeText(row.status)}`;
           bookingList.appendChild(card);
         });
       } catch (error) {
@@ -443,8 +516,8 @@
       }
     });
 
+    loadMeta();
     checkHealth();
-    document.getElementById("journeyDate").value = new Date().toISOString().slice(0, 10);
   </script>
 </body>
 </html>
