@@ -22,6 +22,8 @@ public class TrainService {
         trains.add(new Train(902, "Night Rider", "Delhi", "Jaipur"));
         trains.add(new Train(903, "Coastal Runner", "Pune", "Chennai"));
         trains.add(new Train(904, "Western Link", "Mumbai", "Bangalore"));
+        trains.add(new Train(905, "Eastern Express", "Kolkata", "Patna"));
+        trains.add(new Train(906, "Central Connector", "Patna", "Lucknow"));
     }
 
     public void displayTrains() {

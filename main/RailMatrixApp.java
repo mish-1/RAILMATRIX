@@ -12,24 +12,10 @@ public class RailMatrixApp {
         BookingService bookingService = new BookingService(trainService, scanner);
 
         while (true) {
-
-            System.out.print("\nEnter Source Station: ");
-            String source = scanner.nextLine().trim();
-
-            System.out.print("Enter Destination Station: ");
-            String destination = scanner.nextLine().trim();
-
-            if (source.isEmpty() || destination.isEmpty()) {
-                System.out.println("Source and destination cannot be empty. Please try again.");
-                continue;
-            }
-
-            trainService.searchTrains(source, destination);
-
             System.out.println("\nWhat would you like to do?");
             System.out.println("1. Book a Ticket");
             System.out.println("2. View My Bookings");
-            System.out.println("3. Search train");
+            System.out.println("3. Search Trains");
             System.out.println("4. Exit");
             System.out.print("Choose option: ");
 
@@ -50,6 +36,18 @@ public class RailMatrixApp {
                     bookingService.viewBookings();
                     break;
                 case 3:
+                    System.out.print("\nEnter Source Station: ");
+                    String source = scanner.nextLine().trim();
+
+                    System.out.print("Enter Destination Station: ");
+                    String destination = scanner.nextLine().trim();
+
+                    if (source.isEmpty() || destination.isEmpty()) {
+                        System.out.println("Source and destination cannot be empty. Please try again.");
+                        break;
+                    }
+
+                    trainService.searchTrains(source, destination);
                     break;
                 case 4:
                     System.out.println("Exiting...");
