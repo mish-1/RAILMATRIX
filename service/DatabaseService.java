@@ -232,6 +232,15 @@ public class DatabaseService {
         statement.executeUpdate("INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type) "
             + "SELECT 907, 'R907', 'Jaipur', 'Rajasthan', 'NWR', 'Junction' FROM DUAL "
             + "WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'jaipur%')");
+        statement.executeUpdate("INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type) "
+            + "SELECT 908, 'R908', 'Kolkata', 'West Bengal', 'ER', 'Terminal' FROM DUAL "
+            + "WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'kolkata%')");
+        statement.executeUpdate("INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type) "
+            + "SELECT 909, 'R909', 'Patna', 'Bihar', 'ECR', 'Junction' FROM DUAL "
+            + "WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'patna%')");
+        statement.executeUpdate("INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type) "
+            + "SELECT 910, 'R910', 'Lucknow', 'Uttar Pradesh', 'NR', 'Terminal' FROM DUAL "
+            + "WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'lucknow%')");
 
         statement.executeUpdate("INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run) "
             + "SELECT 901, 12001, 'RedLine Express', 'Express', 'Daily' FROM DUAL "
@@ -245,6 +254,12 @@ public class DatabaseService {
         statement.executeUpdate("INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run) "
             + "SELECT 904, 12004, 'Western Link', 'Intercity', 'Daily' FROM DUAL "
                 + "WHERE NOT EXISTS (SELECT 1 FROM `Train` WHERE train_id = 904)");
+        statement.executeUpdate("INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run) "
+            + "SELECT 905, 12005, 'Eastern Express', 'Express', 'Daily' FROM DUAL "
+                + "WHERE NOT EXISTS (SELECT 1 FROM `Train` WHERE train_id = 905)");
+        statement.executeUpdate("INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run) "
+            + "SELECT 906, 12006, 'Central Connector', 'Intercity', 'Daily' FROM DUAL "
+                + "WHERE NOT EXISTS (SELECT 1 FROM `Train` WHERE train_id = 906)");
 
         statement.executeUpdate("INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source) "
             + "SELECT 9001, 901, (SELECT station_id FROM `Station` WHERE LOWER(TRIM(station_name)) = 'mumbai' LIMIT 1), 1, NULL, '06:00:00', 0, 0 FROM DUAL "
@@ -279,5 +294,19 @@ public class DatabaseService {
         statement.executeUpdate("INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source) "
                 + "SELECT 9010, 904, (SELECT station_id FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'bangalore%' OR LOWER(TRIM(station_name)) LIKE 'bengaluru%' LIMIT 1), 2, '22:00:00', NULL, 0, 980 FROM DUAL "
                 + "WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE train_id = 904 AND stop_number = 2)");
+
+        statement.executeUpdate("INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source) "
+            + "SELECT 9011, 905, (SELECT station_id FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'kolkata%' LIMIT 1), 1, NULL, '06:45:00', 0, 0 FROM DUAL "
+            + "WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE train_id = 905 AND stop_number = 1)");
+        statement.executeUpdate("INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source) "
+            + "SELECT 9012, 905, (SELECT station_id FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'patna%' LIMIT 1), 2, '12:15:00', NULL, 0, 530 FROM DUAL "
+            + "WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE train_id = 905 AND stop_number = 2)");
+
+        statement.executeUpdate("INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source) "
+            + "SELECT 9013, 906, (SELECT station_id FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'patna%' LIMIT 1), 1, NULL, '14:00:00', 0, 0 FROM DUAL "
+            + "WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE train_id = 906 AND stop_number = 1)");
+        statement.executeUpdate("INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source) "
+            + "SELECT 9014, 906, (SELECT station_id FROM `Station` WHERE LOWER(TRIM(station_name)) LIKE 'lucknow%' LIMIT 1), 2, '19:10:00', NULL, 0, 560 FROM DUAL "
+            + "WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE train_id = 906 AND stop_number = 2)");
     }
 }
