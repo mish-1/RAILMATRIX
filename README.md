@@ -115,3 +115,15 @@ Base URL: http://localhost:8080
 - [output-viewer.html](output-viewer.html) only shows user-scoped bookings.
 - If startup fails with `Address already in use: bind`, another process is already using port `8080`. Stop the old process and run [run-web.ps1](run-web.ps1) again.
 - .class files are ignored via [.gitignore](.gitignore).
+
+## Future Scope
+
+- User authentication and role-based access (admin/user views)
+- Booking cancellation and modification workflows
+- Waitlist support for fully booked trains
+- Dynamic fare calculation based on demand and seat class
+- Payment gateway integration for end-to-end booking
+- Notification support (email/SMS) for booking confirmations
+- Advanced admin dashboard for reports and booking analytics
+- Automated test coverage (unit, integration, and API tests)
+- Containerized deployment using Docker and CI/CD pipelines
