@@ -1,5 +1,6 @@
 # RailMatrix Booking Console
 
+
 RailMatrix is a Java + MySQL train booking project with:
 - CLI app for terminal-based flow
 - Web UI for search and booking management
