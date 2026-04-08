@@ -373,8 +373,12 @@
     function renderTrainResponse(data) {
       const direct = data.direct || [];
       const connecting = data.connecting || [];
+      const source = safeText(data.source, "Unknown Source");
+      const destination = safeText(data.destination, "Unknown Destination");
 
       const lines = [];
+      lines.push(`Results for: ${source} -> ${destination}`);
+      lines.push("");
       lines.push("--- Direct Trains ---");
       if (direct.length === 0) {
         lines.push("No Direct Trains Found.");
@@ -387,7 +391,11 @@
       if (connecting.length === 0) {
         lines.push("No Connecting Trains Found.");
       } else {
-        connecting.forEach((c) => lines.push(`${c.firstTrain} -> [${c.junction}] -> ${c.secondTrain}`));
+        connecting.forEach((c, index) => {
+          const junction = safeText(c.junction, "Unknown Junction");
+          lines.push(`Option ${index + 1}: ${source} -> ${junction} -> ${destination}`);
+          lines.push(`Trains: ${safeText(c.firstTrain)} -> ${safeText(c.secondTrain)}`);
+        });
       }
 
       trainResults.textContent = lines.join("\n");
