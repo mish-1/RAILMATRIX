@@ -58,7 +58,7 @@ Optional environment variables (if you want custom values):
 
 If RAILMATRIX_DB_URL is not set, app builds default URL from the CREATE DATABASE line in [railmatrix.sql](railmatrix.sql).
 
-## Run Backend + Frontend
+## Run Web App (Backend + Frontend)
 
 From project root:
 
