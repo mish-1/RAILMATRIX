@@ -1,8 +1,0 @@
-{
-  "code-runner.runInTerminal": true,
-  "code-runner.cwd": "$workspaceRoot",
-  "code-runner.fileDirectoryAsCwd": false,
-  "code-runner.executorMap": {
-    "java": "Set-Location $workspaceRoot; $jarPaths = (Get-ChildItem main -File -Filter *.jar | ForEach-Object { $_.FullName }) -join ';'; if ([string]::IsNullOrWhiteSpace($jarPaths)) { $cp = '.' } else { $cp = '.;' + $jarPaths }; javac -cp $cp main\\RailMatrixApp.java model\\*.java service\\*.java; if ($LASTEXITCODE -eq 0) { java -cp $cp main.RailMatrixApp }"
-  }
-}
