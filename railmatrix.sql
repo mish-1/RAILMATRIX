@@ -1,300 +1,271 @@
-show databases;
-CREATE DATABASE IF NOT EXISTS ConnectingTrainDB;
-USE ConnectingTrainDB;
+SHOW DATABASES;
+create database security_lab;
+USE security_lab;
 
-CREATE TABLE IF NOT EXISTS `User` (
-    user_id INT PRIMARY KEY,
-    user_name VARCHAR(50) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    phone_number VARCHAR(15) NOT NULL
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    username VARCHAR(50),
+    password VARCHAR(100),
+    flag varchar(150)
 );
 
-CREATE TABLE IF NOT EXISTS `Train` (
-    train_id INT PRIMARY KEY,
-    train_number INT UNIQUE NOT NULL,
-    train_name VARCHAR(100) NOT NULL,
-    train_type VARCHAR(30),
-    days_of_run VARCHAR(50)
+INSERT INTO users (id, username, password, flag) VALUES
+(1, 'admin', 'admin123', 'FLAG{SQL_LOGIN_BYPASS}');
+
+show tables;
+select * from users;
+CREATE TABLE accounts (
+    id INT PRIMARY KEY,
+    user_id INT,
+    balance INT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-CREATE TABLE IF NOT EXISTS `Station` (
-    station_id INT PRIMARY KEY,
-    station_code VARCHAR(10) UNIQUE NOT NULL,
-    station_name VARCHAR(100) NOT NULL,
-    state VARCHAR(50),
-    zone VARCHAR(20),
-    station_type VARCHAR(20),
-    CHECK (station_type IN ('Junction', 'Terminal', 'Halt'))
+CREATE TABLE transactions (
+    id INT PRIMARY KEY,
+    from_account INT,
+    to_account INT,
+    amount INT,
+    FOREIGN KEY (from_account) REFERENCES accounts(id),
+    FOREIGN KEY (to_account) REFERENCES accounts(id)
 );
 
-CREATE TABLE IF NOT EXISTS `Route` (
-    route_id INT PRIMARY KEY,
-    train_id INT NOT NULL,
-    station_id INT NOT NULL,
-    stop_number INT NOT NULL,
-    arrival_time TIME,
-    departure_time TIME,
-    halt_duration INT,
-    distance_from_source INT,
-    FOREIGN KEY (train_id) REFERENCES `Train`(train_id),
-    FOREIGN KEY (station_id) REFERENCES `Station`(station_id)
+CREATE TABLE cards (
+    id INT PRIMARY KEY,
+    user_id INT,
+    card_number VARCHAR(20),
+    cvv INT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-CREATE TABLE IF NOT EXISTS `Stop` (
-    stop_id INT AUTO_INCREMENT PRIMARY KEY,
-    route_id INT NOT NULL,
-    station_id INT NOT NULL,
-    stop_sequence INT NOT NULL,
-    arrival_time TIME,
-    departure_time TIME,
-    halt_duration INT,
-    FOREIGN KEY (route_id) REFERENCES `Route`(route_id),
-    FOREIGN KEY (station_id) REFERENCES `Station`(station_id)
+-- 1. Payees (saved beneficiaries for transfers)
+CREATE TABLE IF NOT EXISTS payees (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT NOT NULL,
+  name         VARCHAR(100),
+  account_no   VARCHAR(30),
+  ifsc         VARCHAR(20) DEFAULT NULL,
+  nickname     VARCHAR(50),
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS `Booking` (
-    booking_id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    train_id INT NOT NULL,
-    source_station_id INT NOT NULL,
-    destination_station_id INT NOT NULL,
-    journey_date DATE NOT NULL,
-    booking_date DATE NOT NULL,
-    seat_count INT NOT NULL,
-    booking_status VARCHAR(20) NOT NULL DEFAULT 'Confirmed',
-    CHECK (booking_status IN ('Confirmed', 'Pending', 'Cancelled')),
-    FOREIGN KEY (user_id) REFERENCES `User`(user_id),
-    FOREIGN KEY (train_id) REFERENCES `Train`(train_id),
-    FOREIGN KEY (source_station_id) REFERENCES `Station`(station_id),
-    FOREIGN KEY (destination_station_id) REFERENCES `Station`(station_id)
+-- 2. Scheduled / recurring transactions
+CREATE TABLE IF NOT EXISTS scheduled_payments (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  user_id        INT NOT NULL,
+  payee_id       INT,
+  amount         INT NOT NULL,
+  frequency      ENUM('once','weekly','monthly') DEFAULT 'once',
+  next_run_date  DATE NOT NULL,
+  description    VARCHAR(100),
+  status         ENUM('active','paused','done') DEFAULT 'active',
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS `Ticket` (
-    ticket_id INT AUTO_INCREMENT PRIMARY KEY,
-    booking_id INT NOT NULL,
-    passenger_name VARCHAR(100) NOT NULL,
-    coach_no VARCHAR(10),
-    seat_no VARCHAR(10),
-    fare DECIMAL(8,2),
-    FOREIGN KEY (booking_id) REFERENCES `Booking`(booking_id)
+-- 3. Support / help tickets
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT NOT NULL,
+  subject      VARCHAR(150),
+  message      TEXT,
+  status       ENUM('open','resolved') DEFAULT 'open',
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type)
-SELECT 901, 'R901', 'Mumbai', 'Maharashtra', 'WR', 'Terminal' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE station_id = 901);
-
-INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type)
-SELECT 902, 'R902', 'Lonavala', 'Maharashtra', 'CR', 'Junction' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE station_id = 902);
-
-INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type)
-SELECT 903, 'R903', 'Pune', 'Maharashtra', 'CR', 'Junction' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE station_id = 903);
-
-INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type)
-SELECT 904, 'R904', 'Bangalore', 'Karnataka', 'SWR', 'Junction' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE station_id = 904);
-
-INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type)
-SELECT 905, 'R905', 'Chennai', 'Tamil Nadu', 'SR', 'Terminal' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE station_id = 905);
-
-INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type)
-SELECT 906, 'R906', 'Delhi', 'Delhi', 'NR', 'Terminal' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE station_id = 906);
-
-INSERT INTO `Station` (station_id, station_code, station_name, state, zone, station_type)
-SELECT 907, 'R907', 'Jaipur', 'Rajasthan', 'NWR', 'Junction' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Station` WHERE station_id = 907);
-
-INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run)
-SELECT 901, 12001, 'RedLine Express', 'Express', 'Daily' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Train` WHERE train_id = 901);
-
-INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run)
-SELECT 902, 12002, 'Night Rider', 'Superfast', 'Daily' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Train` WHERE train_id = 902);
-
-INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run)
-SELECT 903, 12003, 'Coastal Runner', 'Express', 'Daily' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Train` WHERE train_id = 903);
-
-INSERT INTO `Train` (train_id, train_number, train_name, train_type, days_of_run)
-SELECT 904, 12004, 'Western Link', 'Intercity', 'Daily' FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Train` WHERE train_id = 904);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9001, 901, 901, 1, NULL, '06:00:00', 0, 0 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9001);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9002, 901, 902, 2, '08:00:00', '08:05:00', 5, 110 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9002);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9003, 901, 903, 3, '09:30:00', NULL, 0, 180 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9003);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9004, 902, 906, 1, NULL, '22:00:00', 0, 0 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9004);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9005, 902, 907, 2, '03:00:00', NULL, 0, 280 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9005);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9006, 903, 903, 1, NULL, '10:00:00', 0, 0 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9006);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9007, 903, 904, 2, '18:00:00', '18:10:00', 10, 840 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9007);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9008, 903, 905, 3, '23:00:00', NULL, 0, 1200 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9008);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9009, 904, 901, 1, NULL, '07:30:00', 0, 0 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9009);
-
-INSERT INTO `Route` (route_id, train_id, station_id, stop_number, arrival_time, departure_time, halt_duration, distance_from_source)
-SELECT 9010, 904, 904, 2, '22:00:00', NULL, 0, 980 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM `Route` WHERE route_id = 9010);
-
-INSERT INTO `Stop` (route_id, station_id, stop_sequence, arrival_time, departure_time, halt_duration)
-SELECT r.route_id, r.station_id, r.stop_number, r.arrival_time, r.departure_time,
-       CASE WHEN r.arrival_time IS NOT NULL AND r.departure_time IS NOT NULL
-            THEN TIMESTAMPDIFF(MINUTE, r.arrival_time, r.departure_time)
-            ELSE NULL END
-FROM `Route` r
-WHERE NOT EXISTS (
-    SELECT 1 FROM `Stop` s
-    WHERE s.route_id = r.route_id AND s.stop_sequence = r.stop_number
+-- 4. Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT NOT NULL,
+  message      TEXT,
+  is_read      TINYINT(1) DEFAULT 0,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-SELECT t.train_id, t.train_number, t.train_name FROM `Train` t ORDER BY t.train_id;
+CREATE TABLE user_vulnerabilities (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  vuln_id INT NOT NULL,  -- Refers to vulnerability ID (1-20)
+  is_completed TINYINT(1) DEFAULT 0,
+  completed_at TIMESTAMP NULL,
+  session_id INT DEFAULT 1,  -- Which session the vulnerability is assigned for
+  PRIMARY KEY (id),
+  UNIQUE KEY unique_assignment (user_id, vuln_id, session_id)
+);
 
--- Function 1 to calculate fare
-DELIMITER $$
+-- Table to track assignment sessions (when user starts a new round of 8 vulns)
+CREATE TABLE user_sessions (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  session_number INT NOT NULL,
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  is_completed TINYINT(1) DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_user_sessions_user_id (user_id)
+);
 
-CREATE FUNCTION calculate_fare(seats INT)
-RETURNS INT
-DETERMINISTIC
-BEGIN
-    RETURN seats * 150;
-END$$
+-- Table mapping vulnerability IDs to names (reference table)
+CREATE TABLE vulnerabilities (
+  id INT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  endpoint VARCHAR(100),
+  description TEXT,
+  difficulty VARCHAR(20),
+  PRIMARY KEY (id)
+);
 
-DELIMITER ;
-SELECT calculate_fare(3);
+INSERT INTO vulnerabilities (id, name, endpoint) VALUES
+(1, 'SQL Injection', '/bank/login'),
+(2, 'IDOR - Transactions', '/transactions/:userId'),
+(3, 'IDOR - Account', '/account/:userId'),
+(4, 'IDOR - Balance', '/balance/:userId'),
+(5, 'IDOR - Loans', '/loans/:userId'),
+(6, 'IDOR - Support', '/support/:userId'),
+(7, 'Unauth - Payee Add', '/payees'),
+(8, 'Unauth - Transfer', '/transfer'),
+(9, 'Delete Payee IDOR', '/payees/:id'),
+(10, 'Forced Browsing', '/admin'),
+(11, 'Insecure Headers', '/*'),
+(12, 'Mass Assignment', '/account/update'),
+(13, 'Missing Auth Check', '/notifications/:userId'),
+(14, 'Path Traversal', '/documents'),
+(15, 'Profile Data Leak', '/profile/:userId'),
+(16, 'Reflected XSS', '/search'),
+(17, 'Reflected XSS 2', '/feedback'),
+(18, 'Secret Leak', '/config'),
+(19, 'Sensitive Param', '/detail?user=1&secret=abc'),
+(20, 'Debug Endpoint', '/debug')
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  endpoint = VALUES(endpoint);
 
--- Function 2 to calculate total number of bookings by user
-DELIMITER $$
+CREATE TABLE accounts (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT,
+  balance INT DEFAULT 1000,
+  account_number VARCHAR(20),
+  ifsc VARCHAR(20),
+  account_type VARCHAR(20),
+  branch VARCHAR(50),
+  PRIMARY KEY (id)
+);
 
-CREATE FUNCTION total_user_bookings(uid INT)
-RETURNS INT
-DETERMINISTIC
-BEGIN
-    DECLARE total INT;
+CREATE TABLE activity (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  action TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY (user_id)
+);
 
-    SELECT COUNT(*) INTO total
-    FROM Booking
-    WHERE user_id = uid;
+CREATE TABLE flags (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT,
+  type TEXT,
+  flag TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
 
-    RETURN total;
-END$$
+CREATE TABLE loan_repayments (
+  id INT NOT NULL AUTO_INCREMENT,
+  loan_id INT NOT NULL,
+  user_id INT NOT NULL,
+  amount INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
 
-DELIMITER ;
-SELECT total_user_bookings(1);
+CREATE TABLE loans (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  amount INT NOT NULL,
+  purpose VARCHAR(200),
+  status VARCHAR(20) DEFAULT 'pending',
+  approved_by INT,
+  disbursed TINYINT(1) DEFAULT 0,
+  outstanding INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
 
--- Procedure 1 to add bookings
-DROP PROCEDURE IF EXISTS add_booking;
-DELIMITER $$
+CREATE TABLE logs (
+  id INT NOT NULL AUTO_INCREMENT,
+  message TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
 
-CREATE PROCEDURE add_booking(
-    IN uid INT,
-    IN tid INT,
-    IN src INT,
-    IN dest INT,
-    IN seats INT,
-    IN jdate DATE
-)
-BEGIN
-    INSERT INTO Booking(
-        user_id,
-        train_id,
-        source_station_id,
-        destination_station_id,
-        journey_date,
-        seat_count
-    )
-    VALUES(
-        uid,
-        tid,
-        src,
-        dest,
-        jdate,
-        seats
-    );
-END$$
+CREATE TABLE sessions (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT,
+  token VARCHAR(100),
+  PRIMARY KEY (id)
+);
 
-DELIMITER;
+CREATE TABLE transactions (
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT,
+  amount INT,
+  type VARCHAR(20),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
 
-CALL add_booking(1, 901, 901, 903, 2, '2026-05-01');
+CREATE TABLE transfers (
+  id INT NOT NULL AUTO_INCREMENT,
+  from_user INT,
+  to_user INT,
+  amount INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
 
--- Procedure 2 to view user bookings
+CREATE TABLE users (
+  id INT NOT NULL AUTO_INCREMENT,
+  username VARCHAR(50),
+  password VARCHAR(50),
+  flag VARCHAR(100),
+  PRIMARY KEY (id)
+);
+-- Realistic fake bank users (kept separate from owasp_app auth users)
+INSERT IGNORE INTO users (id, username, password, flag) VALUES
+(1, 'ava.thompson', 'Ava@2026', NULL),
+(2, 'liam.carter', 'Liam@2026', NULL),
+(3, 'noah.bennett', 'Noah@2026', NULL),
+(4, 'mia.patel', 'Mia@2026', NULL),
+(5, 'oliver.reed', 'Oliver@2026', NULL);
 
-DROP PROCEDURE IF EXISTS view_user_bookings;
+-- Test data for loans
+INSERT IGNORE INTO loans (id, user_id, amount, purpose, status, outstanding) VALUES
+(1, 1, 50000, 'Car Purchase', 'approved', 40000),
+(2, 2, 100000, 'Home Renovation', 'approved', 80000),
+(3, 1, 25000, 'Education', 'pending', 25000),
+(4, 2, 75000, 'Business Startup', 'approved', 50000),
+(5, 3, 30000, 'Personal', 'approved', 15000),
+(6, 4, 60000, 'Vehicle Loan', 'approved', 45000),
+(7, 5, 120000, 'Home Loan', 'approved', 100000),
+(8, 4, 35000, 'Education Loan', 'pending', 35000);
 
-DELIMITER $$
+-- Test data for support tickets
+INSERT IGNORE INTO support_tickets (id, user_id, subject, message, status) VALUES
+(1, 1, 'Loan Inquiry', 'I want to know about loan options', 'open'),
+(2, 2, 'Card Replacement', 'My card is lost', 'open'),
+(3, 1, 'Balance Issue', 'Balance seems incorrect', 'open'),
+(4, 2, 'Transfer Failed', 'My recent transfer failed', 'open'),
+(5, 3, 'Account Access', 'Cannot access my account', 'resolved'),
+(6, 4, 'Loan Status', 'Can I get information about my loan status?', 'open'),
+(7, 5, 'Transaction Query', 'I see an unauthorized transaction', 'open'),
+(8, 4, 'Account Help', 'Help with my account settings', 'open');
 
-CREATE PROCEDURE view_user_bookings(IN uid INT)
-BEGIN
-    SELECT 
-        b.booking_id,
-        u.user_name,
-        t.train_name,
-        s1.station_name AS source,
-        s2.station_name AS destination,
-        b.journey_date,
-        b.booking_date,
-        b.seat_count,
-        b.booking_status
-    FROM Booking b
-    JOIN User u ON b.user_id = u.user_id
-    JOIN Train t ON b.train_id = t.train_id
-    JOIN Station s1 ON b.source_station_id = s1.station_id
-    JOIN Station s2 ON b.destination_station_id = s2.station_id
-    WHERE b.user_id = uid;
-END$$
-
-DELIMITER ;
-CALL view_user_bookings(1);
-
--- Trigger 1 to check seat limit
-DELIMITER $$
-
-CREATE TRIGGER check_seat_limit
-BEFORE INSERT ON Booking
-FOR EACH ROW
-BEGIN
-    IF NEW.seat_count > 6 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Max 6 seats allowed';
-    END IF;
-END$$
-
-DELIMITER ;
-
--- Trigger 2 to set auto booking date
-DELIMITER $$
-
-CREATE TRIGGER set_booking_date
-BEFORE INSERT ON Booking
-FOR EACH ROW
-BEGIN
-    SET NEW.booking_date = CURDATE();
-END$$
-
-DELIMITER ;
+-- Test data for payees
+INSERT IGNORE INTO payees (id, user_id, name, account_no, ifsc, nickname) VALUES
+(1, 1, 'John Doe', '1234567890123', 'SBIN0001', 'JD Account'),
+(2, 2, 'Jane Smith', '9876543210987', 'HDFC001', 'JS Main'),
+(3, 1, 'Bob Wilson', '5555555555555', 'ICIC0001', 'Bob Personal'),
+(4, 2, 'Alice Johnson', '1111111111111', 'AXIS0001', 'AJ Work'),
+(5, 4, 'Rina Patel', '2222222222222', 'SBIN0001', 'Family'),
+(6, 5, 'Ethan Reed', '3333333333333', 'HDFC001', 'Sibling'),
+(7, 5, 'Northwind Payroll', '4444444444444', 'ICIC0001', 'Work');
