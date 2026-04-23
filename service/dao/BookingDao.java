@@ -6,6 +6,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +38,30 @@ public class BookingDao {
         return bookingId;
     }
 
+    public boolean updateBooking(
+            Connection connection,
+            int bookingId,
+            int userId,
+            String journeyDate,
+            int seatCount,
+            String bookingStatus
+    ) throws SQLException {
+        int rowsUpdated = updateBookingUsingProcedure(
+                connection,
+                bookingId,
+                userId,
+                journeyDate,
+                seatCount,
+                bookingStatus
+        );
+        return rowsUpdated > 0;
+    }
+
+    public boolean deleteBooking(Connection connection, int bookingId, int userId) throws SQLException {
+        int rowsDeleted = deleteBookingUsingProcedure(connection, bookingId, userId);
+        return rowsDeleted > 0;
+    }
+
     private int createBookingUsingProcedure(
             Connection connection,
             int userId,
@@ -66,6 +91,40 @@ public class BookingDao {
         }
 
         throw new SQLException("Unable to fetch booking_id after add_booking procedure call.");
+    }
+
+    private int updateBookingUsingProcedure(
+            Connection connection,
+            int bookingId,
+            int userId,
+            String journeyDate,
+            int seatCount,
+            String bookingStatus
+    ) throws SQLException {
+        String call = "{CALL update_booking(?, ?, ?, ?, ?, ?)}";
+
+        try (CallableStatement statement = connection.prepareCall(call)) {
+            statement.setInt(1, bookingId);
+            statement.setInt(2, userId);
+            statement.setInt(3, seatCount);
+            statement.setDate(4, Date.valueOf(journeyDate));
+            statement.setString(5, bookingStatus);
+            statement.registerOutParameter(6, Types.INTEGER);
+            statement.execute();
+            return statement.getInt(6);
+        }
+    }
+
+    private int deleteBookingUsingProcedure(Connection connection, int bookingId, int userId) throws SQLException {
+        String call = "{CALL delete_booking(?, ?, ?)}";
+
+        try (CallableStatement statement = connection.prepareCall(call)) {
+            statement.setInt(1, bookingId);
+            statement.setInt(2, userId);
+            statement.registerOutParameter(3, Types.INTEGER);
+            statement.execute();
+            return statement.getInt(3);
+        }
     }
 
     public int fetchFareUsingFunction(Connection connection, int seatCount) throws SQLException {
@@ -174,6 +233,32 @@ public class BookingDao {
         }
 
         return rows;
+    }
+
+    public BookingView fetchBookingByIdAndUser(Connection connection, int bookingId, int userId) throws SQLException {
+        String sql = "SELECT b.booking_id, b.user_id, u.user_name, b.train_id, t.train_name, "
+                + "s1.station_name AS source, s2.station_name AS destination, "
+                + "b.journey_date, b.booking_date, b.seat_count, b.booking_status "
+                + "FROM `Booking` b "
+                + "JOIN `User` u ON u.user_id = b.user_id "
+                + "JOIN `Train` t ON t.train_id = b.train_id "
+                + "JOIN `Station` s1 ON s1.station_id = b.source_station_id "
+                + "JOIN `Station` s2 ON s2.station_id = b.destination_station_id "
+                + "WHERE b.booking_id = ? AND b.user_id = ? "
+                + "LIMIT 1";
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, bookingId);
+            statement.setInt(2, userId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return mapBookingView(resultSet);
+                }
+            }
+        }
+
+        return null;
     }
 
     public int fetchReservedSeatsForTrainAndDate(Connection connection, int trainId, String journeyDate) throws SQLException {

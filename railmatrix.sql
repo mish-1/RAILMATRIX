@@ -274,6 +274,86 @@ END$$
 DELIMITER ;
 CALL view_user_bookings(2);
 
+-- Procedure 3 to update booking
+DROP PROCEDURE IF EXISTS update_booking;
+DELIMITER $$
+
+CREATE PROCEDURE update_booking(
+    IN bid INT,
+    IN uid INT,
+    IN seats INT,
+    IN jdate DATE,
+    IN bstatus VARCHAR(20),
+    OUT rows_updated INT
+)
+BEGIN
+    IF seats < 1 OR seats > 6 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Seat count must be between 1 and 6';
+    END IF;
+
+    IF jdate < CURDATE() THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Journey date must be today or a future date';
+    END IF;
+
+    IF bstatus NOT IN ('Confirmed', 'Pending', 'Cancelled') THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid booking status';
+    END IF;
+
+    UPDATE Booking
+    SET seat_count = seats,
+        journey_date = jdate,
+        booking_status = bstatus
+    WHERE booking_id = bid
+      AND user_id = uid;
+
+    SET rows_updated = ROW_COUNT();
+END$$
+
+DELIMITER ;
+
+-- Procedure 4 to delete booking
+DROP PROCEDURE IF EXISTS delete_booking;
+DELIMITER $$
+
+CREATE PROCEDURE delete_booking(
+    IN bid INT,
+    IN uid INT,
+    OUT rows_deleted INT
+)
+BEGIN
+        DECLARE journey_dt DATETIME;
+
+        SET rows_deleted = 0;
+
+        SELECT TIMESTAMP(journey_date, '00:00:00')
+        INTO journey_dt
+        FROM Booking
+        WHERE booking_id = bid
+            AND user_id = uid
+        LIMIT 1;
+
+        IF journey_dt IS NULL THEN
+                SET rows_deleted = 0;
+        ELSEIF TIMESTAMPDIFF(HOUR, NOW(), journey_dt) < 48 THEN
+                SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Booking can only be deleted at least 48 hours before journey date';
+        ELSE
+                DELETE FROM Ticket
+                WHERE booking_id = bid;
+
+                DELETE FROM Booking
+                WHERE booking_id = bid
+                    AND user_id = uid;
+
+                SET rows_deleted = ROW_COUNT();
+        END IF;
+END$$
+
+DELIMITER ;
+
 -- Trigger 1 to check seat limit
 DELIMITER $$
 

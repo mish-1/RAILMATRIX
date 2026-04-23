@@ -15,13 +15,15 @@ public class RailMatrixApp {
             System.out.println("\nWhat would you like to do?");
             System.out.println("1. Book a Ticket");
             System.out.println("2. View My Bookings");
-            System.out.println("3. Search Trains");
-            System.out.println("4. Exit");
+            System.out.println("3. Update Booking");
+            System.out.println("4. Delete Booking");
+            System.out.println("5. Search Trains");
+            System.out.println("6. Exit");
             System.out.print("Choose option: ");
 
             if (!scanner.hasNextInt()) {
                 scanner.nextLine();
-                System.out.println("Invalid choice! Please enter a number between 1 and 4.");
+                System.out.println("Invalid choice! Please enter a number between 1 and 6.");
                 continue;
             }
 
@@ -36,6 +38,12 @@ public class RailMatrixApp {
                     bookingService.viewBookings();
                     break;
                 case 3:
+                    bookingService.updateBooking();
+                    break;
+                case 4:
+                    bookingService.deleteBooking();
+                    break;
+                case 5:
                     System.out.print("\nEnter Source Station: ");
                     String source = scanner.nextLine().trim();
 
@@ -49,7 +57,7 @@ public class RailMatrixApp {
 
                     trainService.searchTrains(source, destination);
                     break;
-                case 4:
+                case 6:
                     System.out.println("Exiting...");
                     System.exit(0);
                 default:

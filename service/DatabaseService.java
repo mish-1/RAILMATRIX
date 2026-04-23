@@ -112,6 +112,8 @@ public class DatabaseService {
         statement.executeUpdate("DROP TRIGGER IF EXISTS set_booking_date");
         statement.executeUpdate("DROP PROCEDURE IF EXISTS add_booking");
         statement.executeUpdate("DROP PROCEDURE IF EXISTS view_user_bookings");
+        statement.executeUpdate("DROP PROCEDURE IF EXISTS update_booking");
+        statement.executeUpdate("DROP PROCEDURE IF EXISTS delete_booking");
         statement.executeUpdate("DROP FUNCTION IF EXISTS calculate_fare");
         statement.executeUpdate("DROP FUNCTION IF EXISTS total_user_bookings");
 
@@ -140,6 +142,40 @@ public class DatabaseService {
             + "JOIN `Station` s1 ON b.source_station_id = s1.station_id "
             + "JOIN `Station` s2 ON b.destination_station_id = s2.station_id "
             + "WHERE b.user_id = uid; "
+            + "END");
+
+        statement.executeUpdate("CREATE PROCEDURE update_booking(IN bid INT, IN uid INT, IN seats INT, IN jdate DATE, IN bstatus VARCHAR(20), OUT rows_updated INT) "
+            + "BEGIN "
+            + "IF seats < 1 OR seats > 6 THEN "
+            + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Seat count must be between 1 and 6'; "
+            + "END IF; "
+            + "IF jdate < CURDATE() THEN "
+            + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Journey date must be today or a future date'; "
+            + "END IF; "
+            + "IF bstatus NOT IN ('Confirmed', 'Pending', 'Cancelled') THEN "
+            + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid booking status'; "
+            + "END IF; "
+            + "UPDATE `Booking` "
+            + "SET seat_count = seats, journey_date = jdate, booking_status = bstatus "
+            + "WHERE booking_id = bid AND user_id = uid; "
+            + "SET rows_updated = ROW_COUNT(); "
+            + "END");
+
+        statement.executeUpdate("CREATE PROCEDURE delete_booking(IN bid INT, IN uid INT, OUT rows_deleted INT) "
+            + "BEGIN "
+            + "DECLARE journey_dt DATETIME; "
+            + "SET rows_deleted = 0; "
+            + "SELECT TIMESTAMP(journey_date, '00:00:00') INTO journey_dt "
+            + "FROM `Booking` WHERE booking_id = bid AND user_id = uid LIMIT 1; "
+            + "IF journey_dt IS NULL THEN "
+            + "SET rows_deleted = 0; "
+            + "ELSEIF TIMESTAMPDIFF(HOUR, NOW(), journey_dt) < 48 THEN "
+            + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Booking can only be deleted at least 48 hours before journey date'; "
+            + "ELSE "
+            + "DELETE FROM `Ticket` WHERE booking_id = bid; "
+            + "DELETE FROM `Booking` WHERE booking_id = bid AND user_id = uid; "
+            + "SET rows_deleted = ROW_COUNT(); "
+            + "END IF; "
             + "END");
 
         statement.executeUpdate("CREATE TRIGGER check_seat_limit BEFORE INSERT ON `Booking` FOR EACH ROW "

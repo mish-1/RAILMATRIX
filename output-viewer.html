@@ -185,6 +185,53 @@
       color: #0f172a;
     }
 
+    .inline-edit {
+      margin-top: 8px;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+
+    .inline-edit input,
+    .inline-edit select {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #c9d5e2;
+      padding: 8px;
+      font: inherit;
+      background: #fff;
+      color: #0f172a;
+    }
+
+    .booking-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tiny-btn {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+      background: #0f766e;
+    }
+
+    .tiny-btn:hover {
+      background: #0b5f59;
+    }
+
+    .tiny-btn.danger {
+      background: #be123c;
+    }
+
+    .tiny-btn.danger:hover {
+      background: #9f1239;
+    }
+
     .bookings-panel {
       margin-top: 14px;
       border: 1px solid var(--line);
@@ -413,6 +460,155 @@
       }
     }
 
+    function createBookingCard(row, currentUserId) {
+      const card = document.createElement("div");
+      card.className = "booking-item";
+
+      const rules = meta.bookingRules || {};
+      const minSeats = Number.isInteger(rules.minSeatsPerBooking) ? rules.minSeatsPerBooking : 1;
+      const maxSeats = Number.isInteger(rules.maxSeatsPerBooking) ? rules.maxSeatsPerBooking : 6;
+
+      const currentStatus = safeText(row.status, "Confirmed");
+      const statusValue = ["Confirmed", "Pending", "Cancelled"].includes(currentStatus) ? currentStatus : "Confirmed";
+
+      const trainLabel = Number(row.trainId) > 0
+        ? `${safeText(row.trainName)} (ID ${safeText(row.trainId)})`
+        : `${safeText(row.trainName)}`;
+
+      card.innerHTML =
+        `<strong>Booking #${row.bookingId}</strong><br>` +
+        `User: ${row.userName} (ID ${row.userId})<br>` +
+        `Train: ${trainLabel}<br>` +
+        `Route: ${safeText(row.source)} -> ${safeText(row.destination)}<br>` +
+        `Journey: ${safeText(row.journeyDate)} | Booking Date: ${safeText(row.bookingDate)}<br>` +
+        `Seats: ${safeText(row.seatCount)} | Status: ${safeText(row.status)}` +
+        `<div class="inline-edit">` +
+          `<div><label>Journey Date</label><input class="edit-journey" type="date" value="${safeText(row.journeyDate, "")}" /></div>` +
+          `<div><label>Seat Count</label><input class="edit-seat" type="number" min="${minSeats}" max="${maxSeats}" value="${safeText(row.seatCount, minSeats)}" /></div>` +
+          `<div><label>Status</label><select class="edit-status">` +
+            `<option value="Confirmed" ${statusValue === "Confirmed" ? "selected" : ""}>Confirmed</option>` +
+            `<option value="Pending" ${statusValue === "Pending" ? "selected" : ""}>Pending</option>` +
+            `<option value="Cancelled" ${statusValue === "Cancelled" ? "selected" : ""}>Cancelled</option>` +
+          `</select></div>` +
+        `</div>` +
+        `<div class="booking-actions">` +
+          `<button type="button" class="tiny-btn update-booking-btn">Update</button>` +
+          `<button type="button" class="tiny-btn danger delete-booking-btn">Delete</button>` +
+        `</div>`;
+
+      const journeyInput = card.querySelector(".edit-journey");
+      const seatInput = card.querySelector(".edit-seat");
+      const statusInput = card.querySelector(".edit-status");
+      const updateButton = card.querySelector(".update-booking-btn");
+      const deleteButton = card.querySelector(".delete-booking-btn");
+
+      updateButton.addEventListener("click", async () => {
+        const payload = {
+          userId: Number(currentUserId),
+          bookingId: Number(row.bookingId),
+          journeyDate: journeyInput.value,
+          seatCount: Number(seatInput.value),
+          bookingStatus: statusInput.value
+        };
+
+        if (!Number.isInteger(payload.seatCount) || payload.seatCount < minSeats || payload.seatCount > maxSeats) {
+          bookingMessage.className = "msg-bad";
+          bookingMessage.textContent = `Seat count must be between ${minSeats} and ${maxSeats}.`;
+          return;
+        }
+        if (!payload.journeyDate) {
+          bookingMessage.className = "msg-bad";
+          bookingMessage.textContent = "Journey date is required for booking update.";
+          return;
+        }
+
+        bookingMessage.className = "";
+        bookingMessage.textContent = `Updating booking #${row.bookingId}...`;
+
+        try {
+          const res = await fetch(`${apiBase}/api/bookings`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            let details = data.error || "Booking update failed";
+            if (typeof data.availableSeats === "number") {
+              details += ` (Available seats: ${data.availableSeats})`;
+            }
+            throw new Error(details);
+          }
+
+          bookingMessage.className = "msg-ok";
+          bookingMessage.textContent = `Booking #${safeText(data.bookingId)} updated. Status: ${safeText(data.status)} | Seats: ${safeText(data.seatCount)} | Journey: ${safeText(data.journeyDate)}`;
+          await loadBookingsForCurrentUser();
+        } catch (error) {
+          bookingMessage.className = "msg-bad";
+          bookingMessage.textContent = `Error: ${error.message}`;
+        }
+      });
+
+      deleteButton.addEventListener("click", async () => {
+        if (!window.confirm(`Delete booking #${row.bookingId}?`)) {
+          return;
+        }
+
+        bookingMessage.className = "";
+        bookingMessage.textContent = `Deleting booking #${row.bookingId}...`;
+
+        try {
+          const url = `${apiBase}/api/bookings?userId=${encodeURIComponent(currentUserId)}&bookingId=${encodeURIComponent(row.bookingId)}`;
+          const res = await fetch(url, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Booking delete failed");
+          }
+
+          bookingMessage.className = "msg-ok";
+          bookingMessage.textContent = `Booking #${safeText(data.bookingId)} deleted. Total Bookings: ${safeText(data.totalBookings)}`;
+          await loadBookingsForCurrentUser();
+        } catch (error) {
+          bookingMessage.className = "msg-bad";
+          bookingMessage.textContent = `Error: ${error.message}`;
+        }
+      });
+
+      return card;
+    }
+
+    async function loadBookingsForCurrentUser() {
+      bookingList.innerHTML = "<div>Loading bookings...</div>";
+      try {
+        const currentUserId = Number(document.getElementById("bookingUserId").value);
+        if (!Number.isInteger(currentUserId) || currentUserId <= 0) {
+          bookingList.innerHTML = "<div class=\"msg-bad\">Enter a valid User ID to load your bookings.</div>";
+          return;
+        }
+
+        const url = `${apiBase}/api/bookings?userId=${currentUserId}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to load bookings");
+        }
+
+        const rows = data.bookings || [];
+        if (rows.length === 0) {
+          bookingList.innerHTML = `<div class="booking-summary">Total Bookings: ${safeText(data.totalBookings, "0")}</div><div>No bookings found.</div>`;
+          return;
+        }
+
+        bookingList.innerHTML = `<div class="booking-summary">Total Bookings: ${safeText(data.totalBookings, String(rows.length))}</div>`;
+        rows.forEach((row) => {
+          const card = createBookingCard(row, currentUserId);
+          bookingList.appendChild(card);
+        });
+      } catch (error) {
+        bookingList.innerHTML = `<div class="msg-bad">Error: ${error.message}</div>`;
+      }
+    }
+
     document.getElementById("searchForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const source = document.getElementById("source").value.trim();
@@ -475,54 +671,16 @@
           `${safeText(data.source)} -> ${safeText(data.destination)}<br>` +
           `Fare: ${safeText(data.fare)} | Booking Date: ${safeText(data.bookingDate)} | ` +
           `Status: ${safeText(data.status)} | Total Bookings: ${safeText(data.totalBookings)}`;
+
+        document.getElementById("bookingUserId").value = String(payload.userId);
+        await loadBookingsForCurrentUser();
       } catch (error) {
         bookingMessage.className = "msg-bad";
         bookingMessage.textContent = `Error: ${error.message}`;
       }
     });
 
-    document.getElementById("loadBookingsBtn").addEventListener("click", async () => {
-      bookingList.innerHTML = "<div>Loading bookings...</div>";
-      try {
-        const currentUserId = Number(document.getElementById("bookingUserId").value);
-        if (!Number.isInteger(currentUserId) || currentUserId <= 0) {
-          bookingList.innerHTML = "<div class=\"msg-bad\">Enter a valid User ID to load your bookings.</div>";
-          return;
-        }
-        const url = `${apiBase}/api/bookings?userId=${currentUserId}`;
-
-        const res = await fetch(url);
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "Unable to load bookings");
-        }
-
-        const rows = data.bookings || [];
-        if (rows.length === 0) {
-          bookingList.innerHTML = `<div class="booking-summary">Total Bookings: ${safeText(data.totalBookings, "0")}</div><div>No bookings found.</div>`;
-          return;
-        }
-
-        bookingList.innerHTML = `<div class="booking-summary">Total Bookings: ${safeText(data.totalBookings, String(rows.length))}</div>`;
-        rows.forEach((row) => {
-          const card = document.createElement("div");
-          card.className = "booking-item";
-          const trainLabel = Number(row.trainId) > 0
-            ? `${safeText(row.trainName)} (ID ${safeText(row.trainId)})`
-            : `${safeText(row.trainName)}`;
-          card.innerHTML =
-            `<strong>Booking #${row.bookingId}</strong><br>` +
-            `User: ${row.userName} (ID ${row.userId})<br>` +
-            `Train: ${trainLabel}<br>` +
-            `Route: ${safeText(row.source)} -> ${safeText(row.destination)}<br>` +
-            `Journey: ${safeText(row.journeyDate)} | Booking Date: ${safeText(row.bookingDate)}<br>` +
-            `Seats: ${safeText(row.seatCount)} | Status: ${safeText(row.status)}`;
-          bookingList.appendChild(card);
-        });
-      } catch (error) {
-        bookingList.innerHTML = `<div class="msg-bad">Error: ${error.message}</div>`;
-      }
-    });
+    document.getElementById("loadBookingsBtn").addEventListener("click", loadBookingsForCurrentUser);
 
     loadMeta();
     checkHealth();

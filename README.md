@@ -10,6 +10,8 @@ RailMatrix is a Java + MySQL train booking project with:
 
 - Search direct and connecting trains
 - Create bookings with journey date and seat count
+- Update bookings (journey date, seat count, status)
+- Delete bookings (with ticket cleanup)
 - View only user-specific bookings (privacy-safe)
 - Java-first flow: frontend reads booking rules/date from backend metadata (`/api/meta`)
 - Automatic startup initialization of required DB routines:
@@ -111,6 +113,24 @@ Base URL: http://localhost:8080
   - Returns bookings for that user only
   - userId is required for privacy
 
+- PUT /api/bookings
+  - Updates a booking for a specific user
+  - Body example:
+
+```json
+{
+  "userId": 10,
+  "bookingId": 21,
+  "journeyDate": "2026-05-02",
+  "seatCount": 3,
+  "bookingStatus": "Confirmed"
+}
+```
+
+- DELETE /api/bookings?userId={id}&bookingId={bookingId}
+  - Deletes a booking for that user
+  - Also removes dependent ticket row(s)
+
 ## Notes
 
 - [output-viewer.html](output-viewer.html) only shows user-scoped bookings.
@@ -120,7 +140,6 @@ Base URL: http://localhost:8080
 ## Future Scope
 
 - User authentication and role-based access (admin/user views)
-- Booking cancellation and modification workflows
 - Waitlist support for fully booked trains
 - Dynamic fare calculation based on demand and seat class
 - Payment gateway integration for end-to-end booking

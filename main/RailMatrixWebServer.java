@@ -233,6 +233,14 @@ public class RailMatrixWebServer {
                 handleCreateBooking(exchange);
                 return;
             }
+            if ("PUT".equalsIgnoreCase(method)) {
+                handleUpdateBooking(exchange);
+                return;
+            }
+            if ("DELETE".equalsIgnoreCase(method)) {
+                handleDeleteBooking(exchange);
+                return;
+            }
             sendJson(exchange, 405, "{\"error\":\"Method not allowed\"}");
         }
 
@@ -386,6 +394,142 @@ public class RailMatrixWebServer {
                 sendJson(exchange, 500, "{\"error\":\"Booking failed\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
             }
         }
+
+        private void handleUpdateBooking(HttpExchange exchange) throws IOException {
+            String body = readRequestBody(exchange.getRequestBody());
+
+            int userId = parseJsonInt(body, "userId");
+            int bookingId = parseJsonInt(body, "bookingId");
+            String journeyDate = parseJsonString(body, "journeyDate");
+            int seatCount = parseJsonInt(body, "seatCount");
+            String bookingStatus = parseJsonString(body, "bookingStatus");
+            if (bookingStatus.isBlank()) {
+                bookingStatus = parseJsonString(body, "status");
+            }
+
+            if (userId <= 0 || bookingId <= 0) {
+                sendJson(exchange, 400, "{\"error\":\"userId and bookingId must be positive numbers\"}");
+                return;
+            }
+            if (!isValidJourneyDate(journeyDate)) {
+                sendJson(exchange, 400, "{\"error\":\"journeyDate must be today or a future date in YYYY-MM-DD format\"}");
+                return;
+            }
+            if (!isValidSeatCount(seatCount)) {
+                sendJson(exchange, 400, "{\"error\":\"seatCount must be between " + MIN_SEATS_PER_BOOKING + " and " + MAX_SEATS_PER_BOOKING + "\"}");
+                return;
+            }
+
+            try (Connection con = databaseService.getConnection()) {
+                BookingDao.BookingView existing = bookingDao.fetchBookingByIdAndUser(con, bookingId, userId);
+                if (existing == null) {
+                    sendJson(exchange, 404, "{\"error\":\"Booking not found for this user\"}");
+                    return;
+                }
+
+                if (bookingStatus.isBlank()) {
+                    bookingStatus = safeTrim(existing.status);
+                }
+                if (!isValidBookingStatus(bookingStatus)) {
+                    sendJson(exchange, 400, "{\"error\":\"bookingStatus must be Confirmed, Pending, or Cancelled\"}");
+                    return;
+                }
+                bookingStatus = normalizeBookingStatus(bookingStatus);
+
+                int reservedSeats = bookingDao.fetchReservedSeatsForTrainAndDate(con, existing.trainId, journeyDate);
+                if (journeyDate.equals(existing.journeyDate)) {
+                    reservedSeats -= existing.seatCount;
+                }
+                reservedSeats = Math.max(0, reservedSeats);
+
+                if (reservedSeats + seatCount > MAX_SEATS_PER_TRAIN_PER_DAY) {
+                    int available = Math.max(0, MAX_SEATS_PER_TRAIN_PER_DAY - reservedSeats);
+                    sendJson(exchange, 400, "{\"error\":\"Not enough seats available for this train on selected date\",\"availableSeats\":" + available + "}");
+                    return;
+                }
+
+                boolean updated = bookingDao.updateBooking(con, bookingId, userId, journeyDate, seatCount, bookingStatus);
+                if (!updated) {
+                    sendJson(exchange, 404, "{\"error\":\"Booking not found or unchanged\"}");
+                    return;
+                }
+
+                BookingDao.BookingView refreshed = bookingDao.fetchBookingByIdAndUser(con, bookingId, userId);
+                if (refreshed == null) {
+                    throw new SQLException("Booking updated but could not be read back.");
+                }
+                int totalBookingsByUser = bookingDao.fetchTotalUserBookingsUsingFunction(con, userId);
+
+                sendJson(exchange, 200, "{" +
+                        "\"message\":\"Booking updated\"," +
+                        "\"bookingId\":" + refreshed.bookingId + "," +
+                        "\"userId\":" + refreshed.userId + "," +
+                        "\"trainId\":" + refreshed.trainId + "," +
+                        "\"trainName\":\"" + escapeJson(refreshed.trainName) + "\"," +
+                        "\"source\":\"" + escapeJson(refreshed.source) + "\"," +
+                        "\"destination\":\"" + escapeJson(refreshed.destination) + "\"," +
+                        "\"journeyDate\":\"" + escapeJson(refreshed.journeyDate) + "\"," +
+                        "\"bookingDate\":\"" + escapeJson(refreshed.bookingDate) + "\"," +
+                        "\"seatCount\":" + refreshed.seatCount + "," +
+                        "\"status\":\"" + escapeJson(refreshed.status) + "\"," +
+                        "\"totalBookings\":" + totalBookingsByUser +
+                        "}");
+            } catch (SQLException e) {
+                if (isRoutineMissingError(e)) {
+                    sendJson(exchange, 500, "{\"error\":\"Required database routine is missing. Run railmatrix.sql to create procedures/functions/triggers.\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
+                    return;
+                }
+                sendJson(exchange, 500, "{\"error\":\"Booking update failed\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
+            }
+        }
+
+        private void handleDeleteBooking(HttpExchange exchange) throws IOException {
+            Map<String, String> queryParams = parseQuery(exchange.getRequestURI().getRawQuery());
+            String userIdParam = safeTrim(queryParams.get("userId"));
+            String bookingIdParam = safeTrim(queryParams.get("bookingId"));
+
+            if (userIdParam.isEmpty() || bookingIdParam.isEmpty()) {
+                sendJson(exchange, 400, "{\"error\":\"userId and bookingId are required\"}");
+                return;
+            }
+
+            try (Connection con = databaseService.getConnection()) {
+                int userId = Integer.parseInt(userIdParam);
+                int bookingId = Integer.parseInt(bookingIdParam);
+                if (userId <= 0 || bookingId <= 0) {
+                    sendJson(exchange, 400, "{\"error\":\"userId and bookingId must be positive numbers\"}");
+                    return;
+                }
+
+                BookingDao.BookingView existing = bookingDao.fetchBookingByIdAndUser(con, bookingId, userId);
+                if (existing == null) {
+                    sendJson(exchange, 404, "{\"error\":\"Booking not found for this user\"}");
+                    return;
+                }
+
+                boolean deleted = bookingDao.deleteBooking(con, bookingId, userId);
+                if (!deleted) {
+                    sendJson(exchange, 404, "{\"error\":\"Booking not found or already deleted\"}");
+                    return;
+                }
+
+                int totalBookingsByUser = bookingDao.fetchTotalUserBookingsUsingFunction(con, userId);
+                sendJson(exchange, 200, "{" +
+                        "\"message\":\"Booking deleted\"," +
+                        "\"bookingId\":" + bookingId + "," +
+                        "\"userId\":" + userId + "," +
+                        "\"totalBookings\":" + totalBookingsByUser +
+                        "}");
+            } catch (NumberFormatException e) {
+                sendJson(exchange, 400, "{\"error\":\"Invalid userId or bookingId value\"}");
+            } catch (SQLException e) {
+                if (isRoutineMissingError(e)) {
+                    sendJson(exchange, 500, "{\"error\":\"Required database routine is missing. Run railmatrix.sql to create procedures/functions/triggers.\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
+                    return;
+                }
+                sendJson(exchange, 500, "{\"error\":\"Booking deletion failed\",\"details\":\"" + escapeJson(e.getMessage()) + "\"}");
+            }
+        }
     }
 
     private static Map<String, String> parseQuery(String rawQuery) {
@@ -431,6 +575,28 @@ public class RailMatrixWebServer {
 
     private static boolean isValidSeatCount(int seatCount) {
         return seatCount >= MIN_SEATS_PER_BOOKING && seatCount <= MAX_SEATS_PER_BOOKING;
+    }
+
+    private static boolean isValidBookingStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return false;
+        }
+        return "Confirmed".equalsIgnoreCase(status)
+                || "Pending".equalsIgnoreCase(status)
+                || "Cancelled".equalsIgnoreCase(status);
+    }
+
+    private static String normalizeBookingStatus(String status) {
+        if (status == null) {
+            return "Confirmed";
+        }
+        if ("Pending".equalsIgnoreCase(status)) {
+            return "Pending";
+        }
+        if ("Cancelled".equalsIgnoreCase(status)) {
+            return "Cancelled";
+        }
+        return "Confirmed";
     }
 
     private static String readRequestBody(InputStream inputStream) throws IOException {

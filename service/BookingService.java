@@ -187,6 +187,140 @@ public class BookingService implements BookingOperations {
         }
     }
 
+    @Override
+    public void updateBooking() {
+        try {
+            System.out.print("Enter User ID: ");
+            int userId = Integer.parseInt(scanner.nextLine());
+            if (userId <= 0) {
+                System.out.println("User ID must be a positive number.");
+                return;
+            }
+
+            System.out.print("Enter Booking ID to update: ");
+            int bookingId = Integer.parseInt(scanner.nextLine());
+            if (bookingId <= 0) {
+                System.out.println("Booking ID must be a positive number.");
+                return;
+            }
+
+            System.out.print("Enter New Journey Date (YYYY-MM-DD): ");
+            String journeyDate = scanner.nextLine().trim();
+            if (!isValidJourneyDate(journeyDate)) {
+                System.out.println("Journey date must be today or a future date in YYYY-MM-DD format.");
+                return;
+            }
+
+            System.out.print("Enter New Seat Count: ");
+            int seatCount = Integer.parseInt(scanner.nextLine());
+            if (!isValidSeatCount(seatCount)) {
+                System.out.println("Seat count must be between 1 and 6.");
+                return;
+            }
+
+            System.out.print("Enter New Status (Confirmed/Pending/Cancelled) or press Enter to keep current: ");
+            String statusInput = scanner.nextLine().trim();
+
+            try (Connection connection = databaseService.getConnection()) {
+                BookingDao.BookingView existing = bookingDao.fetchBookingByIdAndUser(connection, bookingId, userId);
+                if (existing == null) {
+                    System.out.println("Booking not found for this user.");
+                    return;
+                }
+
+                String bookingStatus = statusInput.isBlank() ? existing.status : statusInput;
+                if (!isValidBookingStatus(bookingStatus)) {
+                    System.out.println("Status must be one of: Confirmed, Pending, Cancelled.");
+                    return;
+                }
+                bookingStatus = normalizeBookingStatus(bookingStatus);
+
+                int reservedSeats = bookingDao.fetchReservedSeatsForTrainAndDate(connection, existing.trainId, journeyDate);
+                if (journeyDate.equals(existing.journeyDate)) {
+                    reservedSeats -= existing.seatCount;
+                }
+                reservedSeats = Math.max(0, reservedSeats);
+
+                if (reservedSeats + seatCount > MAX_SEATS_PER_TRAIN_PER_DAY) {
+                    int available = Math.max(0, MAX_SEATS_PER_TRAIN_PER_DAY - reservedSeats);
+                    System.out.println("Update failed. Only " + available + " seat(s) are available for this train on " + journeyDate + ".");
+                    return;
+                }
+
+                boolean updated = bookingDao.updateBooking(
+                        connection,
+                        bookingId,
+                        userId,
+                        journeyDate,
+                        seatCount,
+                        bookingStatus
+                );
+
+                if (!updated) {
+                    System.out.println("No booking was updated.");
+                    return;
+                }
+
+                BookingDao.BookingView refreshed = bookingDao.fetchBookingByIdAndUser(connection, bookingId, userId);
+                if (refreshed == null) {
+                    System.out.println("Booking updated, but unable to fetch updated details.");
+                    return;
+                }
+
+                System.out.println("Booking updated successfully.");
+                System.out.println("Booking ID: " + refreshed.bookingId);
+                System.out.println("Journey Date: " + refreshed.journeyDate);
+                System.out.println("Seat Count: " + refreshed.seatCount);
+                System.out.println("Status: " + refreshed.status);
+            } catch (SQLException e) {
+                System.out.println("Unable to update booking: " + e.getMessage());
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input! Please enter numbers correctly.");
+        }
+    }
+
+    @Override
+    public void deleteBooking() {
+        try {
+            System.out.print("Enter User ID: ");
+            int userId = Integer.parseInt(scanner.nextLine());
+            if (userId <= 0) {
+                System.out.println("User ID must be a positive number.");
+                return;
+            }
+
+            System.out.print("Enter Booking ID to delete: ");
+            int bookingId = Integer.parseInt(scanner.nextLine());
+            if (bookingId <= 0) {
+                System.out.println("Booking ID must be a positive number.");
+                return;
+            }
+
+            try (Connection connection = databaseService.getConnection()) {
+                BookingDao.BookingView existing = bookingDao.fetchBookingByIdAndUser(connection, bookingId, userId);
+                if (existing == null) {
+                    System.out.println("Booking not found for this user.");
+                    return;
+                }
+
+                boolean deleted = bookingDao.deleteBooking(connection, bookingId, userId);
+                if (!deleted) {
+                    System.out.println("No booking was deleted.");
+                    return;
+                }
+
+                int totalBookingsByUser = bookingDao.fetchTotalUserBookingsUsingFunction(connection, userId);
+                System.out.println("Booking deleted successfully. Booking ID: " + bookingId);
+                System.out.println("Total bookings by this user: " + totalBookingsByUser);
+            } catch (SQLException e) {
+                System.out.println("Unable to delete booking: " + e.getMessage());
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input! Please enter numbers correctly.");
+        }
+    }
+
     private boolean isValidUserName(String value) {
         if (value == null) {
             return false;
@@ -206,5 +340,27 @@ public class BookingService implements BookingOperations {
 
     private boolean isValidSeatCount(int seatCount) {
         return seatCount >= 1 && seatCount <= 6;
+    }
+
+    private boolean isValidBookingStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        return "Confirmed".equalsIgnoreCase(status)
+                || "Pending".equalsIgnoreCase(status)
+                || "Cancelled".equalsIgnoreCase(status);
+    }
+
+    private String normalizeBookingStatus(String status) {
+        if (status == null) {
+            return "Confirmed";
+        }
+        if ("Pending".equalsIgnoreCase(status)) {
+            return "Pending";
+        }
+        if ("Cancelled".equalsIgnoreCase(status)) {
+            return "Cancelled";
+        }
+        return "Confirmed";
     }
 }
