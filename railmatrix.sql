@@ -488,3 +488,8 @@ WHERE booking_status = 'Cancelled';
 
 DELETE FROM Booking
 WHERE booking_status = 'Cancelled';
+
+-- CHECK PHONE NO 
+ALTER TABLE User
+ADD CONSTRAINT chk_phone
+CHECK (phone_number REGEXP '^[0-9]{10}$');
