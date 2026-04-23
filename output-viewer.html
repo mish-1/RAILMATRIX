@@ -313,6 +313,10 @@
             <label for="userName">User Name</label>
             <input id="userName" name="userName" value="Demo User" required />
           </div>
+          <div>
+            <label for="phoneNumber">Phone Number</label>
+            <input id="phoneNumber" name="phoneNumber" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" value="9876543210" required />
+          </div>
           <div class="row">
             <div>
               <label for="journeyDate">Journey Date</label>
@@ -635,6 +639,7 @@
       const payload = {
         userId: Number(document.getElementById("userId").value),
         userName: document.getElementById("userName").value.trim(),
+        phoneNumber: document.getElementById("phoneNumber").value.trim(),
         trainId: Number(document.getElementById("trainId").value),
         journeyDate: document.getElementById("journeyDate").value,
         seatCount: Number(document.getElementById("seatCount").value)
@@ -643,6 +648,12 @@
       if (!Number.isInteger(payload.userId) || payload.userId <= 0 || !Number.isInteger(payload.trainId) || payload.trainId <= 0) {
         bookingMessage.className = "msg-bad";
         bookingMessage.textContent = "User ID and Train ID must be positive numbers.";
+        return;
+      }
+
+      if (!/^\d{10}$/.test(payload.phoneNumber)) {
+        bookingMessage.className = "msg-bad";
+        bookingMessage.textContent = "Phone number must be exactly 10 digits.";
         return;
       }
 

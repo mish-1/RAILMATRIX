@@ -296,6 +296,10 @@ public class RailMatrixWebServer {
             int userId = parseJsonInt(body, "userId");
             int trainId = parseJsonInt(body, "trainId");
             String userName = parseJsonString(body, "userName");
+            String phoneNumber = parseJsonString(body, "phoneNumber");
+            if (phoneNumber.isBlank()) {
+                phoneNumber = parseJsonString(body, "phone");
+            }
             String journeyDate = parseJsonString(body, "journeyDate");
             int seatCount = parseJsonInt(body, "seatCount");
 
@@ -305,6 +309,10 @@ public class RailMatrixWebServer {
             }
             if (!isValidUserName(userName)) {
                 sendJson(exchange, 400, "{\"error\":\"userName must contain only letters/spaces and be 2-50 characters\"}");
+                return;
+            }
+            if (!isValidPhoneNumber(phoneNumber)) {
+                sendJson(exchange, 400, "{\"error\":\"phoneNumber must be exactly 10 digits\"}");
                 return;
             }
             if (journeyDate.isBlank()) {
@@ -342,7 +350,7 @@ public class RailMatrixWebServer {
                     return;
                 }
 
-                userDao.upsertUser(con, userId, userName);
+                userDao.upsertUser(con, userId, userName, phoneNumber);
 
                 int bookingId = bookingDao.createBooking(
                         con,
@@ -562,6 +570,13 @@ public class RailMatrixWebServer {
         }
         String trimmed = value.trim();
         return trimmed.matches("[A-Za-z ]{2,50}");
+    }
+
+    private static boolean isValidPhoneNumber(String value) {
+        if (value == null) {
+            return false;
+        }
+        return value.trim().matches("[0-9]{10}");
     }
 
     private static boolean isValidJourneyDate(String value) {

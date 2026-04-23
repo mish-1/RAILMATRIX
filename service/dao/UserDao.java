@@ -6,15 +6,15 @@ import java.sql.SQLException;
 
 public class UserDao {
 
-    public void upsertUser(Connection connection, int userId, String userName) throws SQLException {
+    public void upsertUser(Connection connection, int userId, String userName, String phoneNumber) throws SQLException {
         String sql = "INSERT INTO `User` (user_id, user_name, email, phone_number) VALUES (?, ?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name)";
+                + "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), phone_number = VALUES(phone_number)";
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, userId);
             statement.setString(2, userName.trim());
             statement.setString(3, "user" + userId + "@railmatrix.local");
-            statement.setString(4, "0000000000");
+            statement.setString(4, phoneNumber.trim());
             statement.executeUpdate();
         }
     }

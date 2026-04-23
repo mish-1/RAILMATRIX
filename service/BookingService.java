@@ -50,6 +50,13 @@ public class BookingService implements BookingOperations {
                 return;
             }
 
+            System.out.print("Enter Phone Number (10 digits): ");
+            String phoneNumber = scanner.nextLine().trim();
+            if (!isValidPhoneNumber(phoneNumber)) {
+                System.out.println("Phone number must be exactly 10 digits.");
+                return;
+            }
+
             User user = new User(userId, name);
 
             System.out.print("Enter Train ID to book: ");
@@ -77,7 +84,7 @@ public class BookingService implements BookingOperations {
             }
 
             try (Connection connection = databaseService.getConnection()) {
-                userDao.upsertUser(connection, user.getUserId(), user.getName());
+                userDao.upsertUser(connection, user.getUserId(), user.getName(), phoneNumber);
 
                 TrainDao.RouteEndpoints endpoints = trainDao.findRouteEndpoints(connection, train.getTrainId());
                 if (!endpoints.isComplete()) {
@@ -327,6 +334,13 @@ public class BookingService implements BookingOperations {
         }
         String trimmed = value.trim();
         return trimmed.matches("[A-Za-z ]{2,50}");
+    }
+
+    private boolean isValidPhoneNumber(String value) {
+        if (value == null) {
+            return false;
+        }
+        return value.trim().matches("[0-9]{10}");
     }
 
     private boolean isValidJourneyDate(String dateValue) {
